@@ -60,6 +60,10 @@ class TestBlas: public Tester<T,U> {
   static const std::vector<size_t> kDilationSizes;
   static const std::vector<size_t> kKernelSizes;
   static const std::vector<size_t> kBatchCounts;
+  static const std::vector<size_t> kNumKernels;
+  static const std::vector<size_t> kStrideValues;
+  static const std::vector<size_t> kChannelValues;
+  static const std::vector<KernelMode> kKernelModes;
   const std::vector<size_t> kOffsets;
   const std::vector<U> kAlphaValues;
   const std::vector<U> kBetaValues;
@@ -136,6 +140,10 @@ template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kBatc
 template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kPadSizes = { 0, 1 };
 template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kDilationSizes = { 1, 2 };
 template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kKernelSizes = { 1, 3 };
+template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kNumKernels = { 1, 6 };
+template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kStrideValues = { 1, 3 };
+template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kChannelValues = { 1, 2 };
+template <typename T, typename U> const std::vector<KernelMode> TestBlas<T,U>::kKernelModes = { KernelMode::kCrossCorrelation, KernelMode::kConvolution };
 
 // Test settings for the invalid tests
 template <typename T, typename U> const std::vector<size_t> TestBlas<T,U>::kInvalidIncrements = { 0, 1 };
@@ -155,6 +163,58 @@ template <typename T, typename U> const std::vector<Diagonal> TestBlas<T,U>::kDi
 template <typename T, typename U, typename BufferType>
 static StatusCode ReferenceNotAvailable(const Arguments<U> &, BufferType &, Queue &) {
   return StatusCode::kNotImplemented;
+}
+
+// Helper for the below function: MSVC's C1061 error requires part of the for-loops to be in a
+// separate file. This part handles the im2col/xconv arguments.
+template <typename C, typename T, typename U>
+void handle_remaining_of_options(std::vector<Arguments<U>> &regular_test_vector, Arguments<U> &r_args,
+                                 TestBlas<T,U> &tester,
+                                 const std::vector<KernelMode> &kernel_modes,
+                                 const std::vector<size_t> &channelss,
+                                 const std::vector<size_t> &heights,
+                                 const std::vector<size_t> &widths,
+                                 const std::vector<size_t> &kernel_hs,
+                                 const std::vector<size_t> &kernel_ws,
+                                 const std::vector<size_t> &pad_hs,
+                                 const std::vector<size_t> &pad_ws,
+                                 const std::vector<size_t> &stride_hs,
+                                 const std::vector<size_t> &stride_ws,
+                                 const std::vector<size_t> &dilation_hs,
+                                 const std::vector<size_t> &dilation_ws,
+                                 const std::vector<size_t> &batch_counts,
+                                 const std::vector<size_t> &num_kernelss) {
+  for (auto &kernel_mode: kernel_modes) { r_args.kernel_mode = kernel_mode;
+    for (auto &channels: channelss) { r_args.channels = channels;
+      for (auto &height: heights) { r_args.height = height;
+        for (auto &width: widths) { r_args.width = width;
+          for (auto &kernel_h: kernel_hs) { r_args.kernel_h = kernel_h;
+            for (auto &kernel_w: kernel_ws) { r_args.kernel_w = kernel_w;
+              for (auto &pad_h: pad_hs) { r_args.pad_h = pad_h;
+                for (auto &pad_w: pad_ws) { r_args.pad_w = pad_w;
+                  for (auto &stride_h: stride_hs) { r_args.stride_h = stride_h;
+                    for (auto &stride_w: stride_ws) { r_args.stride_w = stride_w;
+                      for (auto &dilation_h: dilation_hs) { r_args.dilation_h = dilation_h;
+                        for (auto &dilation_w: dilation_ws) { r_args.dilation_w = dilation_w;
+                          for (auto &batch_count: batch_counts) { r_args.batch_count = batch_count;
+                            for (auto &num_kernels: num_kernelss) { r_args.num_kernels = num_kernels;
+                              C::SetSizes(r_args, tester.queue_);
+                              regular_test_vector.push_back(r_args);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
 }
 
 // The interface to the correctness tester. This is a separate function in the header such that it
@@ -229,6 +289,7 @@ size_t RunTests(int argc, char *argv[], const bool silent, const std::string &na
   auto imax_offsets = std::vector<size_t>{args.imax_offset};
   auto alphas = std::vector<U>{args.alpha};
   auto betas = std::vector<U>{args.beta};
+  auto kernel_modes = std::vector<KernelMode>{args.kernel_mode};
   auto channelss = std::vector<size_t>{args.channels};
   auto heights = std::vector<size_t>{args.height};
   auto widths = std::vector<size_t>{args.width};
@@ -241,6 +302,7 @@ size_t RunTests(int argc, char *argv[], const bool silent, const std::string &na
   auto dilation_hs = std::vector<size_t>{args.dilation_h};
   auto dilation_ws = std::vector<size_t>{args.dilation_w};
   auto batch_counts = std::vector<size_t>{args.batch_count};
+  auto num_kernelss = std::vector<size_t>{args.num_kernels};
   auto x_sizes = std::vector<size_t>{args.x_size};
   auto y_sizes = std::vector<size_t>{args.y_size};
   auto a_sizes = std::vector<size_t>{args.a_size};
@@ -284,18 +346,20 @@ size_t RunTests(int argc, char *argv[], const bool silent, const std::string &na
     if (option == kArgImaxOffset) { imax_offsets = tester.kOffsets; }
     if (option == kArgAlpha) { alphas = tester.kAlphaValues; }
     if (option == kArgBeta) { betas = tester.kBetaValues; }
-    if (option == kArgChannels) { channelss = tester.kKernelSizes; }
+    if (option == kArgKernelMode) { kernel_modes = tester.kKernelModes; }
+    if (option == kArgChannels) { channelss = tester.kChannelValues; }
     if (option == kArgHeight) { heights = tester.kMatrixDims; }
     if (option == kArgWidth) { widths = tester.kMatrixDims; }
     if (option == kArgKernelH) { kernel_hs = tester.kKernelSizes; }
     if (option == kArgKernelW) { kernel_ws = tester.kKernelSizes; }
     if (option == kArgPadH) { pad_hs = tester.kPadSizes; }
     if (option == kArgPadW) { pad_ws = tester.kPadSizes; }
-    if (option == kArgStrideH) { stride_hs = tester.kKernelSizes; }
-    if (option == kArgStrideW) { stride_ws = tester.kKernelSizes; }
+    if (option == kArgStrideH) { stride_hs = tester.kStrideValues; }
+    if (option == kArgStrideW) { stride_ws = tester.kStrideValues; }
     if (option == kArgDilationH) { dilation_hs = tester.kDilationSizes; }
     if (option == kArgDilationW) { dilation_ws = tester.kDilationSizes; }
     if (option == kArgBatchCount) { batch_counts = tester.kBatchCounts; }
+    if (option == kArgNumKernels) { num_kernelss = tester.kNumKernels; }
 
     if (option == kArgXOffset) { x_sizes = tester.kVecSizes; }
     if (option == kArgYOffset) { y_sizes = tester.kVecSizes; }
@@ -338,32 +402,13 @@ size_t RunTests(int argc, char *argv[], const bool silent, const std::string &na
                                                     for (auto &imax_offset: imax_offsets) { r_args.imax_offset = imax_offset;
                                                       for (auto &alpha: alphas) { r_args.alpha = alpha;
                                                         for (auto &beta: betas) { r_args.beta = beta;
-                                                          for (auto &channels: channelss) { r_args.channels = channels;
-                                                            for (auto &height: heights) { r_args.height = height;
-                                                              for (auto &width: widths) { r_args.width = width;
-                                                                for (auto &kernel_h: kernel_hs) { r_args.kernel_h = kernel_h;
-                                                                  for (auto &kernel_w: kernel_ws) { r_args.kernel_w = kernel_w;
-                                                                    for (auto &pad_h: pad_hs) { r_args.pad_h = pad_h;
-                                                                      for (auto &pad_w: pad_ws) { r_args.pad_w = pad_w;
-                                                                        for (auto &stride_h: stride_hs) { r_args.stride_h = stride_h;
-                                                                          for (auto &stride_w: stride_ws) { r_args.stride_w = stride_w;
-                                                                            for (auto &dilation_h: dilation_hs) { r_args.dilation_h = dilation_h;
-                                                                              for (auto &dilation_w: dilation_ws) { r_args.dilation_w = dilation_w;
-                                                                                for (auto &batch_count: batch_counts) { r_args.batch_count = batch_count;
-                                                                                  C::SetSizes(r_args, tester.queue_);
-                                                                                  regular_test_vector.push_back(r_args);
-                                                                                }
-                                                                              }
-                                                                            }
-                                                                          }
-                                                                        }
-                                                                      }
-                                                                    }
-                                                                  }
-                                                                }
-                                                              }
-                                                            }
-                                                          }
+                                                          // Cannot have more for-loops because of MSVC's C1061 error
+                                                          handle_remaining_of_options<C>(regular_test_vector, r_args, tester,
+                                                                                      kernel_modes,
+                                                                                      channelss, heights, widths, kernel_hs, kernel_ws,
+                                                                                      pad_hs, pad_ws, stride_hs, stride_ws,
+                                                                                      dilation_hs, dilation_ws,
+                                                                                      batch_counts, num_kernelss);
                                                         }
                                                       }
                                                     }

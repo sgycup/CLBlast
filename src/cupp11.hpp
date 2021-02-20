@@ -327,6 +327,11 @@ public:
   std::string AMDBoardName() const { return ""; }
   std::string NVIDIAComputeCapability() const { return Capabilities(); }
 
+  // Returns if the Nvidia chip is a Volta or later archicture (major version  7 or higher)
+  bool IsPostNVIDIAVolta() const {
+    return GetInfo(CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 7;
+  }
+
   // Retrieves the above extra information
   std::string GetExtraInfo() const { return NVIDIAComputeCapability(); }
 
@@ -678,8 +683,8 @@ public:
   }
 
   // Regular constructor with memory management
-  explicit Kernel(const Program &program, const std::string &name): name_(name) {
-    CheckError(cuModuleGetFunction(&kernel_, program.GetModule(), name.c_str()));
+  explicit Kernel(const std::shared_ptr<Program> program, const std::string &name): name_(name) {
+    CheckError(cuModuleGetFunction(&kernel_, program->GetModule(), name.c_str()));
   }
 
   // Sets a kernel argument at the indicated position. This stores both the value of the argument

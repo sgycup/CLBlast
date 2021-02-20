@@ -31,6 +31,16 @@ template <> bool IsCloseToZero(const double2 value) { return IsCloseToZero(value
 
 // =================================================================================================
 
+// Performs a complex conjugate if complex
+template <typename T> T ComplexConjugate(const T value) { return value; }
+template half ComplexConjugate(const half);
+template float ComplexConjugate(const float);
+template double ComplexConjugate(const double);
+template <> float2 ComplexConjugate(const float2 value) { return float2{value.real(), -value.imag()}; }
+template <> double2 ComplexConjugate(const double2 value) { return double2{value.real(), -value.imag()}; }
+
+// =================================================================================================
+
 template <typename T, typename U>
 void DeviceToHost(const Arguments<U> &args, Buffers<T> &buffers, BuffersHost<T> &buffers_host,
                   Queue &queue, const std::vector<std::string> &names) {
@@ -121,7 +131,7 @@ void OverrideParametersFromJSONFiles(const std::vector<std::string>& file_names,
 
   // Retrieves the best parameters for each file from disk
   BestParametersCollection all_parameters;
-  for (const auto json_file_name : file_names) {
+  for (const auto& json_file_name : file_names) {
     GetBestParametersFromJSONFile(json_file_name, all_parameters, precision);
   }
 
@@ -171,6 +181,7 @@ void GetBestParametersFromJSONFile(const std::string& file_name,
       kernel_family.erase(std::remove(kernel_family.begin(), kernel_family.end(), '1'), kernel_family.end());
       kernel_family.erase(std::remove(kernel_family.begin(), kernel_family.end(), '2'), kernel_family.end());
       kernel_family.erase(std::remove(kernel_family.begin(), kernel_family.end(), '3'), kernel_family.end());
+      if (kernel_family == "Xgemmdirect") { kernel_family = "XgemmDirect"; } // more kinds of mismatches
     }
 
     // Retrieves the best-parameters and sets the override
@@ -188,7 +199,7 @@ void GetBestParametersFromJSONFile(const std::string& file_name,
 
       // Creates the list of parameters
       fprintf(stdout, "* Found parameters for kernel '%s': { ", kernel_family.c_str());
-      for (const auto config : config_split) {
+      for (const auto& config : config_split) {
         const auto params_split = split(config, '=');
         if (params_split.size() != 2) { break; }
         const auto parameter_name = params_split[0];

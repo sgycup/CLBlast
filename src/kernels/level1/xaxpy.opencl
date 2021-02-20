@@ -43,10 +43,11 @@ void XaxpyFaster(const int n, const real_arg arg_alpha,
                  __global realV* ygm) {
   const real alpha = GetRealArg(arg_alpha);
 
-  if (get_global_id(0) < n / (VW)) {
+  const int num_usefull_threads = n / (VW * WPT);
+  if (get_global_id(0) < num_usefull_threads) {
     #pragma unroll
     for (int _w = 0; _w < WPT; _w += 1) {
-      const int id = _w*get_global_size(0) + get_global_id(0);
+      const int id = _w*num_usefull_threads + get_global_id(0);
       realV xvalue = xgm[id];
       realV yvalue = ygm[id];
       ygm[id] = MultiplyAddVector(yvalue, alpha, xvalue);

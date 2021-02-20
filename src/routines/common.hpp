@@ -36,20 +36,18 @@ void RunKernel(Kernel &kernel, Queue &queue, const Device &device,
 // Sets all elements of a matrix to a constant value
 template <typename T>
 void FillMatrix(Queue &queue, const Device &device,
-                const Program &program, const Databases &,
+                const std::shared_ptr<Program> program,
                 EventPointer event, const std::vector<Event> &waitForEvents,
                 const size_t m, const size_t n, const size_t ld, const size_t offset,
-                const Buffer<T> &dest,
-                const T constant_value);
+                const Buffer<T> &dest, const T constant_value, const size_t local_size);
 
 // Sets all elements of a vector to a constant value
 template <typename T>
 void FillVector(Queue &queue, const Device &device,
-                const Program &program, const Databases &,
+                const std::shared_ptr<Program> program,
                 EventPointer event, const std::vector<Event> &waitForEvents,
                 const size_t n, const size_t inc, const size_t offset,
-                const Buffer<T> &dest,
-                const T constant_value);
+                const Buffer<T> &dest, const T constant_value, const size_t local_size);
 
 // =================================================================================================
 
@@ -66,7 +64,7 @@ void PadCopyTransposeMatrix(Queue &queue, const Device &device,
                             const size_t dest_ld, const size_t dest_offset,
                             const Buffer<T> &dest,
                             const T alpha,
-                            const Program &program, const bool do_pad,
+                            const std::shared_ptr<Program> program, const bool do_pad,
                             const bool do_transpose, const bool do_conjugate,
                             const bool upper = false, const bool lower = false,
                             const bool diagonal_imag_zero = false) {
@@ -78,6 +76,7 @@ void PadCopyTransposeMatrix(Queue &queue, const Device &device,
 
   // Determines the right kernel
   auto kernel_name = std::string{};
+  auto pad_kernel = false;
   if (do_transpose) {
     if (use_fast_kernel &&
         IsMultiple(src_ld, db["TRA_WPT"]) &&
@@ -87,7 +86,8 @@ void PadCopyTransposeMatrix(Queue &queue, const Device &device,
     }
     else {
       use_fast_kernel = false;
-      kernel_name = (do_pad) ? "TransposePadMatrix" : "TransposeMatrix";
+      pad_kernel = (do_pad || do_conjugate);
+      kernel_name = (pad_kernel) ? "TransposePadMatrix" : "TransposeMatrix";
     }
   }
   else {
@@ -99,7 +99,8 @@ void PadCopyTransposeMatrix(Queue &queue, const Device &device,
     }
     else {
       use_fast_kernel = false;
-      kernel_name = (do_pad) ? "CopyPadMatrix" : "CopyMatrix";
+      pad_kernel = do_pad;
+      kernel_name = (pad_kernel) ? "CopyPadMatrix" : "CopyMatrix";
     }
   }
 
@@ -125,7 +126,7 @@ void PadCopyTransposeMatrix(Queue &queue, const Device &device,
     kernel.SetArgument(8, static_cast<int>(dest_offset));
     kernel.SetArgument(9, dest());
     kernel.SetArgument(10, GetRealArg(alpha));
-    if (do_pad) {
+    if (pad_kernel) {
       kernel.SetArgument(11, static_cast<int>(do_conjugate));
     }
     else {
@@ -186,7 +187,7 @@ void PadCopyTransposeMatrixBatched(Queue &queue, const Device &device,
                                    const size_t dest_one, const size_t dest_two,
                                    const size_t dest_ld, const Buffer<int> &dest_offsets,
                                    const Buffer<T> &dest,
-                                   const Program &program, const bool do_pad,
+                                   const std::shared_ptr<Program> program, const bool do_pad,
                                    const bool do_transpose, const bool do_conjugate,
                                    const size_t batch_count) {
 
@@ -250,7 +251,7 @@ void PadCopyTransposeMatrixStridedBatched(Queue &queue, const Device &device,
                                           const size_t dest_one, const size_t dest_two,
                                           const size_t dest_ld, const size_t dest_offset,
                                           const size_t dest_stride, const Buffer<T> &dest,
-                                          const Program &program, const bool do_pad,
+                                          const std::shared_ptr<Program> program, const bool do_pad,
                                           const bool do_transpose, const bool do_conjugate,
                                           const size_t batch_count) {
 

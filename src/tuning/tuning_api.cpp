@@ -104,7 +104,10 @@ StatusCode TuneXgemm(RawCommandQueue * queue, const size_t m, const size_t n, co
                      const double fraction, std::unordered_map<std::string,size_t> &parameters) {
   auto args = Arguments<T>(); args.fraction = fraction; args.m = m; args.n = n; args.k = k;
   auto queue_cpp = Queue(*queue);
-  return TunerAPI<T>(queue_cpp, args, 2, XgemmGetTunerDefaults, XgemmGetTunerSettings<T>,
+  auto status = TunerAPI<T>(queue_cpp, args, 2, XgemmGetTunerDefaults, XgemmGetTunerSettings<T>,
+                            XgemmTestValidArguments<T>, XgemmSetConstraints, XgemmComputeLocalMemSize<T>, XgemmSetArguments<T>, parameters);
+  if (status != StatusCode::kSuccess) { return status; }
+  return TunerAPI<T>(queue_cpp, args, 12, XgemmGetTunerDefaults, XgemmGetTunerSettings<T>,
                      XgemmTestValidArguments<T>, XgemmSetConstraints, XgemmComputeLocalMemSize<T>, XgemmSetArguments<T>, parameters);
 }
 template StatusCode PUBLIC_API TuneXgemm<half>(RawCommandQueue*, const size_t, const size_t, const size_t, const double, std::unordered_map<std::string,size_t>&);
@@ -238,11 +241,11 @@ StatusCode TunerAPI(Queue &queue, const Arguments<T> &args, const int V,
   const auto device_architecture = GetDeviceArchitecture(device);
   const auto device_name = GetDeviceName(device);
 
-  // Creates input buffers with random data
+  // Creates input buffers with random data. Adds a 'canary' region to detect buffer overflows.
   const auto buffer_sizes = std::vector<size_t>{
-      settings.size_x, settings.size_y,
-      settings.size_a, settings.size_b, settings.size_c,
-      settings.size_temp
+      settings.size_x + kCanarySize, settings.size_y + kCanarySize,
+      settings.size_a + kCanarySize, settings.size_b + kCanarySize, settings.size_c + kCanarySize,
+      settings.size_temp + kCanarySize
   };
   const auto seed = static_cast<unsigned long>(time(nullptr));
   std::mt19937 mt(seed);
@@ -261,7 +264,8 @@ StatusCode TunerAPI(Queue &queue, const Arguments<T> &args, const int V,
   }
 
   // Sets the tunable parameters and their possible values
-  auto configurations = SetConfigurations(device, settings.parameters,
+  auto configurations = SetConfigurations(device, settings.parameters, settings.local_size,
+                                          settings.mul_local, settings.div_local,
                                           SetConstraints(V), ComputeLocalMemSize(V));
 
   // Select the search method (full search or a random fraction)
@@ -370,7 +374,7 @@ StatusCode TunerAPI(Queue &queue, const Arguments<T> &args, const int V,
   if (best_time_ms == 0.0) { return StatusCode::kUnexpectedError; }
 
   // Stores the best parameters
-  for (const auto config : best_configuration->config) {
+  for (const auto& config : best_configuration->config) {
     parameters[config.first] = config.second;
   }
   return StatusCode::kSuccess;

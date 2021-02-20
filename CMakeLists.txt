@@ -21,8 +21,8 @@ endif()
 # CMake project details
 project("clblast" C CXX)
 set(clblast_VERSION_MAJOR 1)
-set(clblast_VERSION_MINOR 3)
-set(clblast_VERSION_PATCH 0)
+set(clblast_VERSION_MINOR 5)
+set(clblast_VERSION_PATCH 2)
 set(clblast_VERSION "${clblast_VERSION_MAJOR}.${clblast_VERSION_MINOR}.${clblast_VERSION_PATCH}")
 set(clblast_SOVERSION ${clblast_VERSION_MAJOR})
 
@@ -32,8 +32,24 @@ option(SAMPLES "Enable compilation of the examples" OFF)
 option(TUNERS "Enable compilation of the tuners" ON)
 option(CLIENTS "Enable compilation of the clients to test and compare performance" OFF)
 option(TESTS "Enable compilation of the correctness tests" OFF)
-option(NETLIB "Enable compilation of the CBLAS Netlib API" OFF)
 option(CUBLAS "Enables performance comparison against cuBLAS on NVIDIA GPUs" OFF)
+
+# The optional Netlib API for CLBlast
+option(NETLIB "Enable compilation of the CBLAS Netlib API" OFF)
+option(NETLIB_PERSISTENT_OPENCL "Makes OpenCL device and context in the CBLAS Netlib API static" OFF)
+if(NETLIB)
+  message("-- Building the Netlib API of CLBlast")
+  if(NETLIB_PERSISTENT_OPENCL)
+    message("   ^^ while using static variables for OpenCL device and context")
+    add_definitions(-DNETLIB_PERSISTENT_OPENCL)
+  endif()
+endif()
+
+# Workarounds for bugs
+option(AMD_SI_EMPTY_KERNEL_WORKAROUND "Enables workaround for bug in AMD Southern Island GPUs" OFF)
+if(AMD_SI_EMPTY_KERNEL_WORKAROUND)
+  add_definitions(-DAMD_SI_EMPTY_KERNEL_WORKAROUND)
+endif()
 
 # Select between an OpenCL API (default) or a CUDA API (beta)
 option(OPENCL "Build CLBlast with an OpenCL API (default)" ON)
@@ -170,16 +186,17 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL Android)
 else()
 
   # Locates the reference BLAS libraries in case the tests need to be compiled. The "FindclBLAS.cmake",
-  # "FindCBLAS.cmake" and "FindcuBLAS.cmake" are included.
+  # "FindCBLAS.cmake", "FindMKL.cmake", and "FindcuBLAS.cmake" are included.
   if(CLIENTS OR TESTS)
     find_package(CBLAS)
+    find_package(MKL)
     if(OPENCL)
       find_package(clBLAS)
     endif()
     if(CUBLAS)
       find_package(cuBLAS)
     endif()
-    if(NOT CLBLAS_FOUND AND NOT CBLAS_FOUND)
+    if(NOT CLBLAS_FOUND AND NOT CBLAS_FOUND AND NOT MKL_FOUND)
       if(TESTS)
         message(STATUS "Could NOT find clBLAS nor a CPU BLAS, disabling the compilation of the tests")
         set(TESTS OFF)
@@ -195,23 +212,23 @@ endif()
 
 # Sets the supported routines and the used kernels. New routines and kernels should be added here.
 set(KERNELS copy_fast copy_pad transpose_fast transpose_pad xaxpy xdot xger
-            xgemm xgemm_direct xgemv invert)
+            xgemm xgemm_direct xgemv invert xconvgemm)
 set(DATABASES copy pad padtranspose transpose xaxpy xdot
               xgemm xgemm_direct xgemv xgemv_fast xgemv_fast_rot xger invert
-              gemm_routine trsv_routine)
+              gemm_routine trsv_routine xconvgemm)
 set(ROUTINE_TUNERS xgemm xtrsv)
 set(LEVEL1_ROUTINES xswap xscal xcopy xaxpy xdot xdotu xdotc xnrm2 xasum xamax)
 set(LEVEL2_ROUTINES xgemv xgbmv xhemv xhbmv xhpmv xsymv xsbmv xspmv xtrmv xtbmv xtpmv xtrsv
                     xger xgeru xgerc xher xhpr xher2 xhpr2 xsyr xspr xsyr2 xspr2)
 set(LEVEL3_ROUTINES xgemm xsymm xhemm xsyrk xherk xsyr2k xher2k xtrmm xtrsm)
-set(LEVELX_ROUTINES xhad xomatcopy xim2col xaxpybatched xgemmbatched xgemmstridedbatched)
+set(LEVELX_ROUTINES xhad xomatcopy xim2col xcol2im xconvgemm xaxpybatched xgemmbatched xgemmstridedbatched)
 set(ROUTINES ${LEVEL1_ROUTINES} ${LEVEL2_ROUTINES} ${LEVEL3_ROUTINES} ${LEVELX_ROUTINES})
 set(PRECISIONS 32 64 3232 6464 16)
 
 # Sample programs
 if(OPENCL)
   set(SAMPLE_PROGRAMS_CPP sgemm sgemm_batched dtrsm tuning_api)
-  set(SAMPLE_PROGRAMS_C sasum dgemv sgemm haxpy cache)
+  set(SAMPLE_PROGRAMS_C sasum samax dgemv sgemm haxpy cache)
   if(NETLIB)
     set(SAMPLE_PROGRAMS_C ${SAMPLE_PROGRAMS_C} sgemm_netlib)
   endif()
@@ -236,7 +253,6 @@ set(SOURCES
   src/routine.cpp
   src/routines/levelx/xinvert.cpp  # only source, don't include it as a test
   src/tuning/configurations.cpp
-  src/tuning/tuning_api.cpp
 )
 set(HEADERS  # such that they can be discovered by IDEs such as CLion and Visual Studio
   include/clblast_half.h
@@ -265,7 +281,7 @@ set(HEADERS  # such that they can be discovered by IDEs such as CLion and Visual
   src/tuning/routines/routine_tuner.hpp
 )
 if(OPENCL)
-  set(SOURCES ${SOURCES} src/clblast.cpp src/clblast_c.cpp)
+  set(SOURCES ${SOURCES} src/clblast.cpp src/clblast_c.cpp src/tuning/tuning_api.cpp)
   set(HEADERS ${HEADERS} include/clblast.h include/clblast_c.h src/clpp11.hpp)
   if(NETLIB)
     set(SOURCES ${SOURCES} src/clblast_netlib_c.cpp)
@@ -418,18 +434,21 @@ if(TUNERS)
   endif()
 
   # Adds tuning executables
-  foreach(KERNEL ${KERNELS})
+  set(ALLKERNELS ${KERNELS})
+  foreach(KERNEL ${ALLKERNELS})
     add_executable(clblast_tuner_${KERNEL} ${TUNERS_COMMON} src/tuning/kernels/${KERNEL}.cpp)
     target_link_libraries(clblast_tuner_${KERNEL} ${API_LIBRARIES})
     target_include_directories(clblast_tuner_${KERNEL} PUBLIC $<TARGET_PROPERTY:clblast,INTERFACE_INCLUDE_DIRECTORIES> ${API_INCLUDE_DIRS})
     install(TARGETS clblast_tuner_${KERNEL} DESTINATION bin)
   endforeach()
-  foreach(ROUTINE_TUNER ${ROUTINE_TUNERS})
-    add_executable(clblast_tuner_routine_${ROUTINE_TUNER} ${TUNERS_COMMON} src/tuning/routines/${ROUTINE_TUNER}.cpp)
-    target_link_libraries(clblast_tuner_routine_${ROUTINE_TUNER} clblast)
-    target_include_directories(clblast_tuner_routine_${ROUTINE_TUNER} PUBLIC $<TARGET_PROPERTY:clblast,INTERFACE_INCLUDE_DIRECTORIES> ${API_INCLUDE_DIRS})
-    install(TARGETS clblast_tuner_routine_${ROUTINE_TUNER} DESTINATION bin)
-  endforeach()
+  if(OPENCL)
+    foreach(ROUTINE_TUNER ${ROUTINE_TUNERS})
+      add_executable(clblast_tuner_routine_${ROUTINE_TUNER} ${TUNERS_COMMON} src/tuning/routines/${ROUTINE_TUNER}.cpp test/test_utilities.cpp)
+      target_link_libraries(clblast_tuner_routine_${ROUTINE_TUNER} clblast)
+      target_include_directories(clblast_tuner_routine_${ROUTINE_TUNER} PUBLIC $<TARGET_PROPERTY:clblast,INTERFACE_INCLUDE_DIRECTORIES> ${API_INCLUDE_DIRS} ${clblast_SOURCE_DIR})
+      install(TARGETS clblast_tuner_routine_${ROUTINE_TUNER} DESTINATION bin)
+    endforeach()
+  endif()
 
   # Adds 'alltuners' target: runs all tuners for all precisions
   set(ALLTUNERS )
@@ -440,6 +459,14 @@ if(TUNERS)
     endforeach()
     set(ALLTUNERSDEPENDS clblast_tuner_${KERNEL})
   endforeach()
+  if(OPENCL)
+    foreach(ROUTINE_TUNER ${ROUTINE_TUNERS})
+      foreach(PRECISION ${PRECISIONS})
+        set(ALLTUNERS ${ALLTUNERS} COMMAND clblast_tuner_routine_${ROUTINE_TUNER} -precision ${PRECISION})
+      endforeach()
+      set(ALLTUNERSDEPENDS clblast_tuner_routine_${ROUTINE_TUNER})
+    endforeach()
+  endif()
   add_custom_target(alltuners ${ALLTUNERS} DEPENDS ${ALLTUNERSDEPENDS})
 
 endif()
@@ -463,9 +490,19 @@ if(CLIENTS OR TESTS)
       add_definitions(" -DCLBLAST_REF_CLBLAS")
     endif()
   endif()
-  if(CBLAS_FOUND)
-    set(REF_INCLUDES ${REF_INCLUDES} ${CBLAS_INCLUDE_DIRS})
-    set(REF_LIBRARIES ${REF_LIBRARIES} ${CBLAS_LIBRARIES})
+  if(CBLAS_FOUND OR MKL_FOUND)
+    if(MKL_FOUND)  # prefers MKL over another CBLAS implementation
+      set(REF_INCLUDES ${REF_INCLUDES} ${MKL_INCLUDE_DIRS})
+      set(REF_LIBRARIES ${REF_LIBRARIES} ${MKL_LIBRARIES})
+      if(MSVC)
+        add_definitions(" /DCLBLAST_REF_CBLAS_MKL")
+      else()
+        add_definitions(" -DCLBLAST_REF_CBLAS_MKL")
+      endif()
+    else()
+      set(REF_INCLUDES ${REF_INCLUDES} ${CBLAS_INCLUDE_DIRS})
+      set(REF_LIBRARIES ${REF_LIBRARIES} ${CBLAS_LIBRARIES})
+    endif()
     set(WRAPPERS ${WRAPPERS} test/wrapper_cblas.hpp)
     if(MSVC)
       add_definitions(" /DCLBLAST_REF_CBLAS")

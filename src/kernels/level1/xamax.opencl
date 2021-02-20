@@ -41,7 +41,7 @@ void Xamax(const int n,
   const int num_groups = get_num_groups(0);
 
   // Performs loading and the first steps of the reduction
-  #if defined(ROUTINE_MAX) || defined(ROUTINE_MIN) // non-absolute version
+  #if defined(ROUTINE_MAX) || defined(ROUTINE_MIN) || defined(ROUTINE_AMIN)
     singlereal max = SMALLEST;
   #else
     singlereal max = ZERO;
@@ -64,7 +64,7 @@ void Xamax(const int n,
     #else
       x = fabs(x);
     #endif
-    if (x >= max) {
+    if (x > max) {
       max = x;
       imax = id*x_inc + x_offset;
     }
@@ -77,7 +77,7 @@ void Xamax(const int n,
   // Performs reduction in local memory
   for (int s=WGS1/2; s>0; s=s>>1) {
     if (lid < s) {
-      if (maxlm[lid + s] >= maxlm[lid]) {
+      if (maxlm[lid + s] > maxlm[lid]) {
         maxlm[lid] = maxlm[lid + s];
         imaxlm[lid] = imaxlm[lid + s];
       }
@@ -105,7 +105,7 @@ void XamaxEpilogue(const __global singlereal* restrict maxgm,
   const int lid = get_local_id(0);
 
   // Performs the first step of the reduction while loading the data
-  if (maxgm[lid + WGS2] >= maxgm[lid]) {
+  if (maxgm[lid + WGS2] > maxgm[lid]) {
     maxlm[lid] = maxgm[lid + WGS2];
     imaxlm[lid] = imaxgm[lid + WGS2];
   }
@@ -118,7 +118,7 @@ void XamaxEpilogue(const __global singlereal* restrict maxgm,
   // Performs reduction in local memory
   for (int s=WGS2/2; s>0; s=s>>1) {
     if (lid < s) {
-      if (maxlm[lid + s] >= maxlm[lid]) {
+      if (maxlm[lid + s] > maxlm[lid]) {
         maxlm[lid] = maxlm[lid + s];
         imaxlm[lid] = imaxlm[lid + s];
       }

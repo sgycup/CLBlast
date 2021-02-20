@@ -175,6 +175,13 @@ std::string ToString(Precision value) {
   }
 }
 template <>
+std::string ToString(KernelMode value) {
+  switch(value) {
+    case KernelMode::kCrossCorrelation: return ToString(static_cast<int>(value))+" (cross-correlation)";
+    case KernelMode::kConvolution: return ToString(static_cast<int>(value))+" (convolution)";
+  }
+}
+template <>
 std::string ToString(StatusCode value) {
   return std::to_string(static_cast<int>(value));
 }
@@ -281,6 +288,7 @@ template Side GetArgument<Side>(const std::vector<std::string>&, std::string&, c
 template Triangle GetArgument<Triangle>(const std::vector<std::string>&, std::string&, const std::string&, const Triangle);
 template Diagonal GetArgument<Diagonal>(const std::vector<std::string>&, std::string&, const std::string&, const Diagonal);
 template Precision GetArgument<Precision>(const std::vector<std::string>&, std::string&, const std::string&, const Precision);
+template KernelMode GetArgument<KernelMode>(const std::vector<std::string>&, std::string&, const std::string&, const KernelMode);
 
 // =================================================================================================
 
@@ -477,7 +485,54 @@ std::string GetDeviceName(const Device& device) {
   for (auto &find_and_replace : device_mapping::kDeviceNames) { // replacing to common names
     if (device_name == find_and_replace.first) { device_name = find_and_replace.second; }
   }
+
+  for (auto &removal : device_mapping::kDeviceRemovals) { // removing certain things
+    if (device_name.find(removal) != std::string::npos) {
+      auto start_position_to_erase = device_name.find(removal);
+      device_name.erase(start_position_to_erase, removal.length());
+    }
+  }
+
   return device_name;
+}
+
+// =================================================================================================
+
+void SetOpenCLKernelStandard(const Device &device, std::vector<std::string> &options) {
+  // Inclusion of one of the following extensions needs OpenCL 1.2 kernels
+  if (device.HasExtension(kKhronosIntelSubgroups)) {
+    options.push_back("-cl-std=CL1.2");
+  }
+    // Otherwise we fall-back to the default CLBlast OpenCL 1.1
+  else {
+    options.push_back("-cl-std=CL1.1");
+  }
+}
+
+// =================================================================================================
+
+// Solve Bezout's identity
+// a * p + b * q = r = GCD(a, b)
+void EuclidGCD(int a, int b, int &p, int &q, int &r) {
+  p = 0;
+  q = 1;
+  int p_1 = 1;
+  int q_1 = 0;
+  for (;;) {
+    const int c = a % b;
+    if (c == 0) {
+      break;
+    }
+    const int p_2 = p_1;
+    const int q_2 = q_1;
+    p_1 = p;
+    q_1 = q;
+    p = p_2 - p_1 * (a / b);
+    q = q_2 - q_1 * (a / b);
+    a = b;
+    b = c;
+  }
+  r = b;
 }
 
 // =================================================================================================

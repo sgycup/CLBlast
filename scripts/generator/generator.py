@@ -49,8 +49,8 @@ FILES = [
     "/src/clblast_cuda.cpp",
     "/src/pyclblast/src/pyclblast.pyx"
 ]
-HEADER_LINES = [123, 21, 127, 24, 29, 41, 29, 65, 32, 95, 21, 288]
-FOOTER_LINES = [98, 56, 112, 275, 6, 6, 6, 9, 2, 41, 55, 1]
+HEADER_LINES = [129, 21, 133, 24, 29, 45, 29, 66, 40, 96, 21, 327]
+FOOTER_LINES = [98, 57, 112, 275, 6, 6, 6, 9, 2, 41, 56, 37]
 HEADER_LINES_DOC = 0
 FOOTER_LINES_DOC = 232
 
@@ -106,11 +106,16 @@ ammn = size_helper("layout == CLBlastLayoutRowMajor", "m", "((side == CLBlastSid
 bmnn = size_helper("layout == CLBlastLayoutRowMajor", "((side == CLBlastSideLeft) ? m : n)", "n", "b_ld")
 im = "height * width * channels"
 col = "height * width * channels"
+imb = "height * width * channels * batch_count"
+kernel = "kernel_h * kernel_w * num_kernels"
+result = "height_out * width_out * num_kernels * batch_count"
+
 
 # ==================================================================================================
 
 # Populates a list of routines
 im2col_constants = ["channels", "height", "width", "kernel_h", "kernel_w", "pad_h", "pad_w", "stride_h", "stride_w", "dilation_h", "dilation_w"]
+convgemm_constants = im2col_constants + ["num_kernels", "batch_count"]
 ROUTINES = [
 [  # Level 1: vector-vector
   Routine(False, True,  0, False, "1", "rotg",  T, [S,D],            [],                  [],                                                     [],         ["sa","sb","sc","ss"],        ["1","1","1","1"], [],       "",    "Generate givens plane rotation", "", []),
@@ -127,10 +132,10 @@ ROUTINES = [
   Routine(True,  True,  0, False, "1", "nrm2",  T, [S,D,Sc,Dz,H],    ["n"],               [],                                                     ["x"],      ["nrm2"],                     [xn,"1"],      [],           "2*n", "Euclidian norm of a vector", "Accumulates the square of _n_ elements in the _x_ vector and takes the square root. The resulting L2 norm is stored in the _nrm2_ buffer.", []),
   Routine(True,  True,  0, False, "1", "asum",  T, [S,D,Sc,Dz,H],    ["n"],               [],                                                     ["x"],      ["asum"],                     [xn,"1"],      [],           "n",   "Absolute sum of values in a vector", "Accumulates the absolute value of _n_ elements in the _x_ vector. The results are stored in the _asum_ buffer.", []),
   Routine(True,  False, 0, False, "1", "sum",   T, [S,D,Sc,Dz,H],    ["n"],               [],                                                     ["x"],      ["sum"],                      [xn,"1"],      [],           "n",   "Sum of values in a vector (non-BLAS function)", "Accumulates the values of _n_ elements in the _x_ vector. The results are stored in the _sum_ buffer. This routine is the non-absolute version of the xASUM BLAS routine.", []),
-  Routine(True,  True,  0, False, "1", "amax",  T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imax"],                     [xn,"1"],      [],           "2*n", "Index of absolute maximum value in a vector", "Finds the index of the maximum of the absolute values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer.", []),
-  Routine(True,  False, 0, False, "1", "amin",  T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imin"],                     [xn,"1"],      [],           "2*n", "Index of absolute minimum value in a vector (non-BLAS function)", "Finds the index of the minimum of the absolute values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer.", []),
-  Routine(True,  False, 0, False, "1", "max",   T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imax"],                     [xn,"1"],      [],           "2*n", "Index of maximum value in a vector (non-BLAS function)", "Finds the index of the maximum of the values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer. This routine is the non-absolute version of the IxAMAX BLAS routine.", []),
-  Routine(True,  False, 0, False, "1", "min",   T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imin"],                     [xn,"1"],      [],           "2*n", "Index of minimum value in a vector (non-BLAS function)", "Finds the index of the minimum of the values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer. This routine is the non-absolute minimum version of the IxAMAX BLAS routine.", []),
+  Routine(True,  True,  0, False, "1", "amax",  T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imax"],                     [xn,"1"],      [],           "2*n", "Index of absolute maximum value in a vector", "Finds the index of a maximum (not necessarily the first if there are multiple) of the absolute values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer.", []),
+  Routine(True,  False, 0, False, "1", "amin",  T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imin"],                     [xn,"1"],      [],           "2*n", "Index of absolute minimum value in a vector (non-BLAS function)", "Finds the index of a minimum (not necessarily the first if there are multiple) of the absolute values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer.", []),
+  Routine(True,  False, 0, False, "1", "max",   T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imax"],                     [xn,"1"],      [],           "2*n", "Index of maximum value in a vector (non-BLAS function)", "Finds the index of a maximum (not necessarily the first if there are multiple) of the values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer. This routine is the non-absolute version of the IxAMAX BLAS routine.", []),
+  Routine(True,  False, 0, False, "1", "min",   T, [iS,iD,iC,iZ,iH], ["n"],               [],                                                     ["x"],      ["imin"],                     [xn,"1"],      [],           "2*n", "Index of minimum value in a vector (non-BLAS function)", "Finds the index of a minimum (not necessarily the first if there are multiple) of the values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer. This routine is the non-absolute minimum version of the IxAMAX BLAS routine.", []),
 ],
 [  # Level 2: matrix-vector
   Routine(True,  True,  0, False, "2a", "gemv",  T,  [S,D,C,Z,H],    ["m","n"],           ["layout","a_transpose"],                               ["a","x"],  ["y"],                        [amn,xmn,ynm], ["alpha","beta"], "",    "General matrix-vector multiplication", "Performs the operation _y = alpha * A * x + beta * y_, in which _x_ is an input vector, _y_ is an input and output vector, _A_ is an input matrix, and _alpha_ and _beta_ are scalars. The matrix _A_ can optionally be transposed before performing the operation.", [ald_m]),
@@ -175,7 +180,9 @@ ROUTINES = [
   # Special routines:
   Routine(True,  True,  0, False, "x", "had",      T, [S,D,C,Z,H],   ["n"],                [],                                                    ["x","y"],  ["z"],                        [xn,yn,zn],      ["alpha","beta"], "",    "Element-wise vector product (Hadamard)", "Performs the Hadamard element-wise product _z = alpha * x * y + beta * z_, in which _x_, _y_, and _z_ are vectors and _alpha_ and _beta_ are scalar constants.", []),
   Routine(True,  True,  0, False, "x", "omatcopy", T, [S,D,C,Z,H],   ["m","n"],            ["layout","a_transpose"],                              ["a"],      ["b"],                        [amn,bnma],      ["alpha"],        "",    "Scaling and out-place transpose/copy (non-BLAS function)", "Performs scaling and out-of-place transposition/copying of matrices according to _B = alpha*op(A)_, in which _A_ is an input matrix (_m_ rows by _n_ columns), _B_ an output matrix, and _alpha_ a scalar value. The operation _op_ can be a normal matrix copy, a transposition or a conjugate transposition.", [ald_m, bld_n]),
-  Routine(True,  True,  0, False, "x", "im2col",   T, [S,D,C,Z,H],   im2col_constants,     [],                                                    ["im"],     ["col"],                      [im,col],        [""],             "",    "Im2col function (non-BLAS function)", "Performs the im2col algorithm, in which _im_ is the input matrix and _col_ is the output matrix.", []),
+  Routine(True,  True,  0, False, "x", "im2col",   T, [S,D,C,Z,H],   im2col_constants,     ["kernel_mode"],                                       ["im"],     ["col"],                      [im,col],        [""],             "",    "Im2col function (non-BLAS function)", "Performs the im2col algorithm, in which _im_ is the input matrix and _col_ is the output matrix. Overwrites any existing values in the _col_ buffer", []),
+  Routine(True,  True,  0, False, "x", "col2im",   T, [S,D,C,Z,H],   im2col_constants,     ["kernel_mode"],                                       ["col"],    ["im"],                       [col,im],        [""],             "",    "Col2im function (non-BLAS function)", "Performs the col2im algorithm, in which _col_ is the input matrix and _im_ is the output matrix. Accumulates results on top of the existing values in the _im_ buffer.", []),
+  Routine(True,  True,  0, False, "x", "convgemm", T, [S,D,H],       convgemm_constants,   ["kernel_mode"],                                       ["im","kernel"], ["result"],              [imb,kernel,result],[""],          "",    "Batched convolution as GEMM (non-BLAS function)", "Integrates im2col and GEMM for batched 3D convolution, in which _im_ is the 4D input tensor (NCHW - batch-channelin-height-width), _kernel_ the 4D kernel weights tensor (KCHW - channelout-channelin-height-width), and _result_ the 4D output tensor (NCHW - batch-channelout-height-width).", []),
   # Batched routines:
   Routine(True,  True,  1, False, "x", "axpy",     T, [S,D,C,Z,H],   ["n"],                [],                                                    ["x"],      ["y"],                        [xn,yn],         ["alpha"],        "",    "Batched version of AXPY", "As AXPY, but multiple operations are batched together for better performance.", []),
   Routine(True,  True,  1, False, "x", "gemm",     T, [S,D,C,Z,H],   ["m","n","k"],        ["layout","a_transpose","b_transpose"],                ["a","b"],  ["c"],                        [amk,bkn,cmn],   ["alpha","beta"], "",    "Batched version of GEMM", "As GEMM, but multiple operations are batched together for better performance.", [ald_transa_m_k, bld_transb_k_n, cld_m]),
@@ -230,10 +237,10 @@ def main(argv):
                     if i == 6:
                         body += cpp.wrapper_cublas(routine)
                     if i == 7:
-                        if routine.batched == 0:
+                        if routine.batched == 0 and routine.name not in ["convgemm"]:
                             body += cpp.clblast_netlib_c_h(routine)
                     if i == 8:
-                        if routine.batched == 0:
+                        if routine.batched == 0 and routine.name not in ["convgemm"]:
                             body += cpp.clblast_netlib_c_cc(routine)
                     if i == 9:
                         body += cpp.clblast_h(routine, cuda=True)

@@ -93,8 +93,10 @@ In addition, some extra non-BLAS routines are also supported by CLBlast, classif
 | xHAD       | ✔ | ✔ | ✔ | ✔ | ✔ | (Hadamard product)
 | xOMATCOPY  | ✔ | ✔ | ✔ | ✔ | ✔ | (Out-of-place copying/transposing/scaling of matrices)
 | xIM2COL    | ✔ | ✔ | ✔ | ✔ | ✔ | (Image to column transform as used to express convolution as GEMM)
+| xCOL2IM    | ✔ | ✔ | ✔ | ✔ | ✔ | (Column to image transform as used in machine learning)
+| xCONVGEMM  | ✔ | ✔ | - | - | ✔ | (Experimental, implemented as either im2col followed by batched GEMM or as a single kernel)
 
-Some less commonly used BLAS routines are not yet supported yet by CLBlast. They are xROTG, xROTMG, xROT, xROTM, xTBSV, and xTPSV.
+Some less commonly used BLAS routines are not yet supported by CLBlast. They are xROTG, xROTMG, xROT, xROTM, xTBSV, and xTPSV.
 
 
 Half precision (fp16)

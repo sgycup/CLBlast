@@ -19,16 +19,21 @@ The CLBlast library is already tuned for the most commonly used OpenCL devices a
   - GeForce GTX 750
   - GeForce GTX 750 Ti
   - GeForce GTX 760 Ti
+  - GeForce GTX 920MX
+  - GeForce GTX 970
   - GeForce GTX 980
   - GeForce GTX 1070
+  - GeForce GTX 1070 Ti
   - GeForce GTX 1080
   - GeForce GTX 1080 Ti
   - GeForce GTX TITAN
   - GeForce GTX TITAN Black
   - GeForce GTX TITAN X
   - TITAN X (Pascal)
+  - TITAN RTX
   - Tesla K20m
   - Tesla K40m
+  - Tesla P100 16GB
 * AMD GPUs:
   - Radeon HD 6750M
   - Radeon HD 6770M
@@ -40,9 +45,12 @@ The CLBlast library is already tuned for the most commonly used OpenCL devices a
   - Radeon RX 480
   - Radeon R9 Fury X
   - Radeon Pro 580
+  - Radeon RX Vega
 * Intel GPUs:
   - HD Graphics 530
   - HD Graphics 5500 BroadWell U-Processor GT2
+  - HD Graphics 6000 BroadWell U-Processor GT3
+  - HD Graphics 630
   - HD Graphics Haswell Ultrabook GT2 Mobile
   - HD Graphics IvyBridge M GT2
   - HD Graphics Skylake ULT GT2
@@ -50,6 +58,7 @@ The CLBlast library is already tuned for the most commonly used OpenCL devices a
   - Iris Pro
 * Intel CPUs:
   - Core i5-4570
+  - Core i5-4590S
   - Core i5-6200U
   - Core i7-920
   - Core i7-2670QM
@@ -57,6 +66,8 @@ The CLBlast library is already tuned for the most commonly used OpenCL devices a
   - Core i7-4790K
   - Core i7-5930K
   - Core i7-6770HQ
+  - Xeon E5-2630 v3
+  - Xeon E5-2630 v4
 * Other devices:
   - ARM Mali-T628 GPU
   - ARM Mali-T760 GPU
@@ -79,7 +90,75 @@ Compiling with `-DTUNERS=ON` will generate a number of tuners, each named `clbla
 
 The kernels `gemm` and `gemm_direct` have too many parameters to explore. Therefore, they will run in two stages: a first stage with a fixed limited number of parameter combinations, and a second stage with a random selection from a much larger search space. The random fraction is determined by the `fraction` argument on the command-line.
 
-There are also several routine-level tuners. They tune inter-kernel parameters and should only be run after the kernels are tuned. An example is the GEMM routine tuner, which determines when to use the direct or the in-direct GEMM kernel.
+There are also several routine-level tuners. They tune inter-kernel parameters and should only be run after the kernels are tuned. However, they do automatically pick up kernel tuning results from the current folder if there are any. An example is the GEMM routine tuner, which determines when to use the direct or the in-direct GEMM kernel.
+
+Here are all the tuners included in the `make alltuners` target (in the same order) with all their precision arguments:
+
+    ./clblast_tuner_copy_fast -precision 32
+    ./clblast_tuner_copy_fast -precision 64
+    ./clblast_tuner_copy_fast -precision 3232
+    ./clblast_tuner_copy_fast -precision 6464
+    ./clblast_tuner_copy_fast -precision 16
+    ./clblast_tuner_copy_pad -precision 32
+    ./clblast_tuner_copy_pad -precision 64
+    ./clblast_tuner_copy_pad -precision 3232
+    ./clblast_tuner_copy_pad -precision 6464
+    ./clblast_tuner_copy_pad -precision 16
+    ./clblast_tuner_transpose_fast -precision 32
+    ./clblast_tuner_transpose_fast -precision 64
+    ./clblast_tuner_transpose_fast -precision 3232
+    ./clblast_tuner_transpose_fast -precision 6464
+    ./clblast_tuner_transpose_fast -precision 16
+    ./clblast_tuner_transpose_pad -precision 32
+    ./clblast_tuner_transpose_pad -precision 64
+    ./clblast_tuner_transpose_pad -precision 3232
+    ./clblast_tuner_transpose_pad -precision 6464
+    ./clblast_tuner_transpose_pad -precision 16
+    ./clblast_tuner_xaxpy -precision 32
+    ./clblast_tuner_xaxpy -precision 64
+    ./clblast_tuner_xaxpy -precision 3232
+    ./clblast_tuner_xaxpy -precision 6464
+    ./clblast_tuner_xaxpy -precision 16
+    ./clblast_tuner_xdot -precision 32
+    ./clblast_tuner_xdot -precision 64
+    ./clblast_tuner_xdot -precision 3232
+    ./clblast_tuner_xdot -precision 6464
+    ./clblast_tuner_xdot -precision 16
+    ./clblast_tuner_xger -precision 32
+    ./clblast_tuner_xger -precision 64
+    ./clblast_tuner_xger -precision 3232
+    ./clblast_tuner_xger -precision 6464
+    ./clblast_tuner_xger -precision 16
+    ./clblast_tuner_xgemm -precision 32
+    ./clblast_tuner_xgemm -precision 64
+    ./clblast_tuner_xgemm -precision 3232
+    ./clblast_tuner_xgemm -precision 6464
+    ./clblast_tuner_xgemm -precision 16
+    ./clblast_tuner_xgemm_direct -precision 32
+    ./clblast_tuner_xgemm_direct -precision 64
+    ./clblast_tuner_xgemm_direct -precision 3232
+    ./clblast_tuner_xgemm_direct -precision 6464
+    ./clblast_tuner_xgemm_direct -precision 16
+    ./clblast_tuner_xgemv -precision 32
+    ./clblast_tuner_xgemv -precision 64
+    ./clblast_tuner_xgemv -precision 3232
+    ./clblast_tuner_xgemv -precision 6464
+    ./clblast_tuner_xgemv -precision 16
+    ./clblast_tuner_invert -precision 32
+    ./clblast_tuner_invert -precision 64
+    ./clblast_tuner_invert -precision 3232
+    ./clblast_tuner_invert -precision 6464
+    ./clblast_tuner_invert -precision 16
+    ./clblast_tuner_routine_xgemm -precision 32
+    ./clblast_tuner_routine_xgemm -precision 64
+    ./clblast_tuner_routine_xgemm -precision 3232
+    ./clblast_tuner_routine_xgemm -precision 6464
+    ./clblast_tuner_routine_xgemm -precision 16
+    ./clblast_tuner_routine_xtrsv -precision 32
+    ./clblast_tuner_routine_xtrsv -precision 64
+    ./clblast_tuner_routine_xtrsv -precision 3232
+    ./clblast_tuner_routine_xtrsv -precision 6464
+    ./clblast_tuner_routine_xtrsv -precision 16
 
 
 Using the tuning results
@@ -96,8 +175,6 @@ In summary, tuning the entire library for your device can be done as follows (st
     make alltuners
     python ../scripts/database/database.py . ..
     make
-
-After the kernels are tuned, you can run the `clblast_tuner_routine_xgemm` tuner to optimize the high-level GEMM routine, i.e. selecting which method to use: the direct kernel or the in-direct kernel.
 
 
 Tuning using the API (advanced users only)
@@ -123,6 +200,26 @@ To inspect current behaviour, you can also retrieve the parameters for a specifi
                                              const Precision precision,
                                              std::unordered_map<std::string,size_t> &parameters)
 
+These two functions require/retrieve the parameters as given in [src/database/kernels](../src/database/kernels), i.e.:
+
+| Kernel name         | Parameters            |
+| --------------------|-----------------------|
+| Xaxpy               |  VW, WGS, WPT         |
+| Xdot                |  WGS1, WGS2           |
+| Xgemv               |  WGS1, WPT1           |
+| XgemvFast           |  VW2, WGS2, WPT2      |
+| XgemvFastRot        |  VW3, WGS3, WPT3      |
+| Xger                |  WGS1, WGS2, WPT      |
+| Xtrsv               |  TRSV_BLOCK_SIZE      |
+| Xgemm               |  GEMMK, KREG, KWG, KWI, MDIMA, MDIMC, MWG, NDIMB, NDIMC, NWG, SA, SB, STRM, STRN, VWM, VWN |
+| XgemmDirect         |  KWID, MDIMAD, MDIMCD, NDIMBD, NDIMCD, PADA, PADB, VWMD, VWND, WGD |
+| Copy                |  COPY_DIMX, COPY_DIMY, COPY_VW, COPY_WPT |
+| Pad                 |  PAD_DIMX, PAD_DIMY, PAD_WPTX, PAD_WPTY |
+| Transpose           |  TRA_DIM, TRA_PAD, TRA_SHUFFLE, TRA_WPT |
+| Padtranspose        |  PADTRA_PAD, PADTRA_TILE, PADTRA_WPT |
+| Invert              |  INTERNAL_BLOCK_SIZE  |
+| TrsvRoutine         |  TRSV_BLOCK_SIZE      |
+
 
 Tuning OpenCL compiler options
 -------------
@@ -143,4 +240,4 @@ To find out which tuners to run for which routines, you can use the table below.
 | GER GERC GERU HER HER2 HPR HPR2 SPR SPR2 SYR SYR2                        | Xger                            |
 | GEMM HEMM HER2K HERK SYMM SYR2K SYRK TRMM GEMMBATCHED GEMMSTRIDEDBATCHED | Xgemm XgemmDirect Copy Pad Transpose Padtranspose |
 | TRSM                                                                     | Xgemm XgemmDirect Copy Pad Transpose Padtranspose Invert |
-| IM2COL                                                                   | Copy                            |
+| IM2COL COL2IM                                                            | Copy                            |

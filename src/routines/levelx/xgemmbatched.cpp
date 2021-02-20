@@ -38,6 +38,7 @@ XgemmBatched<T>::XgemmBatched(Queue &queue, EventPointer event, const std::strin
     , // separated in multiple parts to prevent C1091 in MSVC 2013
     #include "../../kernels/level3/xgemm_part1.opencl"
     #include "../../kernels/level3/xgemm_part2.opencl"
+    , // separated in multiple parts to prevent C1091 in MSVC 2013
     #include "../../kernels/level3/xgemm_part3.opencl"
     #include "../../kernels/level3/xgemm_part4.opencl"
     , // separated in multiple parts to prevent C1091 in MSVC 2013
@@ -65,19 +66,22 @@ void XgemmBatched<T>::DoGemmBatched(const Layout layout, const Transpose a_trans
     throw BLASError(StatusCode::kInvalidBatchCount);
   }
 
+  // Two methods to choose from, select which one to run
+  const auto do_gemm_direct = Xgemm<T>::UseDirectKernel(m, n, k, db_["XGEMM_MIN_INDIRECT_SIZE"]);
+  const auto gemm_kernel_id = (do_gemm_direct) ? 0 : db_["GEMMK"];
+
   // Computes the transpose/conjugate options and sets the a/b/c sizes based on that
   bool a_do_transpose, b_do_transpose, c_do_transpose, a_conjugate, b_conjugate;
   size_t a_one, a_two, b_one, b_two, c_one, c_two;
   Xgemm<T>::ProcessArguments(layout, a_transpose, b_transpose, m, n, k,
                              a_one, a_two, b_one, b_two, c_one, c_two,
-                             a_do_transpose, b_do_transpose, c_do_transpose, a_conjugate, b_conjugate);
+                             a_do_transpose, b_do_transpose, c_do_transpose, a_conjugate, b_conjugate,
+                             gemm_kernel_id);
 
   // Tests the matrices for validity
-  for (auto batch = size_t{0}; batch < batch_count; ++batch) {
-    TestMatrixA(a_one, a_two, a_buffer, a_offsets[batch], a_ld, false); // don't test for invalid LD
-    TestMatrixB(b_one, b_two, b_buffer, b_offsets[batch], b_ld, false); // don't test for invalid LD
-    TestMatrixC(c_one, c_two, c_buffer, c_offsets[batch], c_ld);
-  }
+  TestBatchedMatrixA(a_one, a_two, a_buffer, a_offsets, a_ld, false); // don't test for invalid LD
+  TestBatchedMatrixB(b_one, b_two, b_buffer, b_offsets, b_ld, false); // don't test for invalid LD
+  TestBatchedMatrixC(c_one, c_two, c_buffer, c_offsets, c_ld);
 
   // Upload the scalar arguments to the device
   auto alphas_device = Buffer<T>(context_, BufferAccess::kReadWrite, batch_count);
@@ -96,7 +100,6 @@ void XgemmBatched<T>::DoGemmBatched(const Layout layout, const Transpose a_trans
   }
 
   // Selects which version of the batched GEMM to run
-  const auto do_gemm_direct = Xgemm<T>::UseDirectKernel(m, n, k, db_["XGEMM_MIN_INDIRECT_SIZE"]);
   if (do_gemm_direct) { // single generic kernel
     BatchedGemmDirect(m, n, k, alphas_device,
                       a_buffer, a_offsets_int, a_ld, b_buffer, b_offsets_int, b_ld,
@@ -141,7 +144,8 @@ void XgemmBatched<T>::BatchedGemmIndirect(const size_t m, const size_t n, const 
   // whether the matrices need to be rotated or not for the kernel.
   size_t a_one_i, a_two_i, b_one_i, b_two_i, c_one_i, c_two_i;
   Xgemm<T>::CalculateInternalDimensions(m, n, k, db_["MWG"], db_["NWG"], db_["KWG"],
-                                        a_one_i, a_two_i, b_one_i, b_two_i, c_one_i, c_two_i);
+                                        a_one_i, a_two_i, b_one_i, b_two_i, c_one_i, c_two_i,
+                                        db_["GEMMK"]);
 
   // Sets the "internal" offsets, i.e. the perfect offsets
   auto a_offsets_i = std::vector<int>(batch_count);

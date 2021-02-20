@@ -34,6 +34,11 @@
   #define PUBLIC_API
 #endif
 
+// Version numbering (v1.5.1)
+#define CLBLAST_VERSION_MAJOR 1
+#define CLBLAST_VERSION_MINOR 5
+#define CLBLAST_VERSION_PATCH 1
+
 // The C interface
 #ifdef __cplusplus
 extern "C" {
@@ -120,6 +125,7 @@ typedef enum CLBlastTriangle_ { CLBlastTriangleUpper = 121,
 typedef enum CLBlastDiagonal_ { CLBlastDiagonalNonUnit = 131,
                                 CLBlastDiagonalUnit = 132 } CLBlastDiagonal;
 typedef enum CLBlastSide_ { CLBlastSideLeft = 141, CLBlastSideRight = 142 } CLBlastSide;
+typedef enum CLBlastKernelMode_ { CLBlastKernelModeCrossCorrelation = 151, CLBlastKernelModeConvolution = 152 } CLBlastKernelMode;
 
 // Precision enum (values in bits)
 typedef enum CLBlastPrecision_ { CLBlastPrecisionHalf = 16, CLBlastPrecisionSingle = 32,
@@ -1389,26 +1395,78 @@ CLBlastStatusCode PUBLIC_API CLBlastHomatcopy(const CLBlastLayout layout, const 
                                               cl_command_queue* queue, cl_event* event);
 
 // Im2col function (non-BLAS function): SIM2COL/DIM2COL/CIM2COL/ZIM2COL/HIM2COL
-CLBlastStatusCode PUBLIC_API CLBlastSim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode PUBLIC_API CLBlastSim2col(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                             const cl_mem im_buffer, const size_t im_offset,
                                             cl_mem col_buffer, const size_t col_offset,
                                             cl_command_queue* queue, cl_event* event);
-CLBlastStatusCode PUBLIC_API CLBlastDim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode PUBLIC_API CLBlastDim2col(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                             const cl_mem im_buffer, const size_t im_offset,
                                             cl_mem col_buffer, const size_t col_offset,
                                             cl_command_queue* queue, cl_event* event);
-CLBlastStatusCode PUBLIC_API CLBlastCim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode PUBLIC_API CLBlastCim2col(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                             const cl_mem im_buffer, const size_t im_offset,
                                             cl_mem col_buffer, const size_t col_offset,
                                             cl_command_queue* queue, cl_event* event);
-CLBlastStatusCode PUBLIC_API CLBlastZim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode PUBLIC_API CLBlastZim2col(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                             const cl_mem im_buffer, const size_t im_offset,
                                             cl_mem col_buffer, const size_t col_offset,
                                             cl_command_queue* queue, cl_event* event);
-CLBlastStatusCode PUBLIC_API CLBlastHim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode PUBLIC_API CLBlastHim2col(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                             const cl_mem im_buffer, const size_t im_offset,
                                             cl_mem col_buffer, const size_t col_offset,
                                             cl_command_queue* queue, cl_event* event);
+
+// Col2im function (non-BLAS function): SCOL2IM/DCOL2IM/CCOL2IM/ZCOL2IM/HCOL2IM
+CLBlastStatusCode PUBLIC_API CLBlastScol2im(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                            const cl_mem col_buffer, const size_t col_offset,
+                                            cl_mem im_buffer, const size_t im_offset,
+                                            cl_command_queue* queue, cl_event* event);
+CLBlastStatusCode PUBLIC_API CLBlastDcol2im(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                            const cl_mem col_buffer, const size_t col_offset,
+                                            cl_mem im_buffer, const size_t im_offset,
+                                            cl_command_queue* queue, cl_event* event);
+CLBlastStatusCode PUBLIC_API CLBlastCcol2im(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                            const cl_mem col_buffer, const size_t col_offset,
+                                            cl_mem im_buffer, const size_t im_offset,
+                                            cl_command_queue* queue, cl_event* event);
+CLBlastStatusCode PUBLIC_API CLBlastZcol2im(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                            const cl_mem col_buffer, const size_t col_offset,
+                                            cl_mem im_buffer, const size_t im_offset,
+                                            cl_command_queue* queue, cl_event* event);
+CLBlastStatusCode PUBLIC_API CLBlastHcol2im(const CLBlastKernelMode kernel_mode,
+                                            const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                            const cl_mem col_buffer, const size_t col_offset,
+                                            cl_mem im_buffer, const size_t im_offset,
+                                            cl_command_queue* queue, cl_event* event);
+
+// Batched convolution as GEMM (non-BLAS function): SCONVGEMM/DCONVGEMM/HCONVGEMM
+CLBlastStatusCode PUBLIC_API CLBlastSconvgemm(const CLBlastKernelMode kernel_mode,
+                                              const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w, const size_t num_kernels, const size_t batch_count,
+                                              const cl_mem im_buffer, const size_t im_offset,
+                                              const cl_mem kernel_buffer, const size_t kernel_offset,
+                                              cl_mem result_buffer, const size_t result_offset,
+                                              cl_command_queue* queue, cl_event* event);
+CLBlastStatusCode PUBLIC_API CLBlastDconvgemm(const CLBlastKernelMode kernel_mode,
+                                              const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w, const size_t num_kernels, const size_t batch_count,
+                                              const cl_mem im_buffer, const size_t im_offset,
+                                              const cl_mem kernel_buffer, const size_t kernel_offset,
+                                              cl_mem result_buffer, const size_t result_offset,
+                                              cl_command_queue* queue, cl_event* event);
+CLBlastStatusCode PUBLIC_API CLBlastHconvgemm(const CLBlastKernelMode kernel_mode,
+                                              const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w, const size_t num_kernels, const size_t batch_count,
+                                              const cl_mem im_buffer, const size_t im_offset,
+                                              const cl_mem kernel_buffer, const size_t kernel_offset,
+                                              cl_mem result_buffer, const size_t result_offset,
+                                              cl_command_queue* queue, cl_event* event);
 
 // Batched version of AXPY: SAXPYBATCHED/DAXPYBATCHED/CAXPYBATCHED/ZAXPYBATCHED/HAXPYBATCHED
 CLBlastStatusCode PUBLIC_API CLBlastSaxpyBatched(const size_t n,

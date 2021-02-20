@@ -21,7 +21,8 @@ namespace clblast {
 // =================================================================================================
 
 // Compiles a program from source code
-Program CompileFromSource(const std::string &source_string, const Precision precision,
+std::shared_ptr<Program> CompileFromSource(
+                          const std::string &source_string, const Precision precision,
                           const std::string &routine_name,
                           const Device& device, const Context& context,
                           std::vector<std::string>& options,
@@ -57,6 +58,26 @@ Program CompileFromSource(const std::string &source_string, const Precision prec
     header_string += "#define GLOBAL_MEM_FENCE 1\n";
   }
 
+  // For Intel GPUs with subgroup support, use subgroup shuffling.
+  if (device.IsGPU() && device.HasExtension(kKhronosIntelSubgroups) &&
+      (precision == Precision::kSingle || precision == Precision::kHalf)) {
+    header_string += "#define USE_SUBGROUP_SHUFFLING 1\n";
+    header_string += "#define SUBGROUP_SHUFFLING_INTEL 1\n";
+  }
+
+  // For NVIDIA GPUs, inline PTX can provide subgroup support
+  if (device.IsGPU() && device.IsNVIDIA() && precision == Precision::kSingle) {
+    header_string += "#define USE_SUBGROUP_SHUFFLING 1\n";
+
+    // Nvidia needs to check pre or post volta due to new shuffle commands
+    if (device.IsPostNVIDIAVolta()) {
+      header_string += "#define SUBGROUP_SHUFFLING_NVIDIA_POST_VOLTA 1\n";
+    }
+    else {
+      header_string += "#define SUBGROUP_SHUFFLING_NVIDIA_PRE_VOLTA 1\n";
+    }
+  }
+  
   // Optionally adds a translation header from OpenCL kernels to CUDA kernels
   #ifdef CUDA_API
     header_string +=
@@ -88,13 +109,14 @@ Program CompileFromSource(const std::string &source_string, const Precision prec
   }
 
   // Compiles the kernel
-  auto program = Program(context, kernel_string);
+  auto program = std::make_shared<Program>(context, kernel_string);
   try {
-    program.Build(device, options);
+    SetOpenCLKernelStandard(device, options);
+    program->Build(device, options);
   } catch (const CLCudaAPIBuildError &e) {
-    if (program.StatusIsCompilationWarningOrError(e.status()) && !silent) {
+    if (program->StatusIsCompilationWarningOrError(e.status()) && !silent) {
       fprintf(stdout, "OpenCL compiler error/warning:\n%s\n",
-              program.GetBuildInfo(device).c_str());
+              program->GetBuildInfo(device).c_str());
     }
     throw;
   }

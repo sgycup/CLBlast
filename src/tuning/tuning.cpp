@@ -62,7 +62,7 @@ void PrintTimingsToFileAsJSON(const std::string &filename,
     fprintf(file, "      \"parameters\": {");
     auto num_configs = result.config.size();
     auto p = size_t{0};
-    for (const auto parameter : result.config) {
+    for (const auto& parameter : result.config) {
       fprintf(file, "\"%s\": %zu", parameter.first.c_str(), parameter.second);
       if (p < num_configs -1 ) { fprintf(file, ","); }
       ++p;
@@ -82,7 +82,7 @@ void PrintTimingsToFileAsJSON(const std::string &filename,
 void print_separator(const size_t parameters_size) {
   printf("x------x-------x");
   for (auto i = size_t{0}; i < parameters_size; ++i) { printf("-----"); }
-  printf("-x----------------x--------------x--------x-------------------x\n");
+  printf("-x-----------------x-----------------x----------------x--------------x--------x-------------------x\n");
 }
 
 // =================================================================================================
@@ -122,8 +122,14 @@ void Tuner(int argc, char* argv[], const int V,
     if (o == kArgM)        { args.m        = GetArgument(command_line_args, help, kArgM, defaults.default_m); }
     if (o == kArgN)        { args.n        = GetArgument(command_line_args, help, kArgN, defaults.default_n); }
     if (o == kArgK)        { args.k        = GetArgument(command_line_args, help, kArgK, defaults.default_k); }
-    if (o == kArgAlpha)    { args.alpha    = GetArgument(command_line_args, help, kArgAlpha, GetScalar<T>()); }
-    if (o == kArgBeta)     { args.beta     = GetArgument(command_line_args, help, kArgBeta, GetScalar<T>()); }
+    if (o == kArgChannels)   { args.channels    = GetArgument(command_line_args, help, kArgChannels, defaults.channels); }
+    if (o == kArgHeight)     { args.height      = GetArgument(command_line_args, help, kArgHeight, defaults.height); }
+    if (o == kArgWidth)      { args.width       = GetArgument(command_line_args, help, kArgWidth, defaults.width); }
+    if (o == kArgKernelH)    { args.kernel_h    = GetArgument(command_line_args, help, kArgKernelH, defaults.kernel_h); }
+    if (o == kArgKernelW)    { args.kernel_w    = GetArgument(command_line_args, help, kArgKernelW, defaults.kernel_w); }
+    if (o == kArgNumKernels) { args.num_kernels = GetArgument(command_line_args, help, kArgNumKernels, defaults.num_kernels); }
+    if (o == kArgAlpha)      { args.alpha       = GetArgument(command_line_args, help, kArgAlpha, GetScalar<T>()); }
+    if (o == kArgBeta)       { args.beta        = GetArgument(command_line_args, help, kArgBeta, GetScalar<T>()); }
     if (o == kArgBatchCount) { args.batch_count = GetArgument(command_line_args, help, kArgBatchCount, defaults.default_batch_count); }
   }
   args.fraction = GetArgument(command_line_args, help, kArgFraction, defaults.default_fraction);
@@ -139,6 +145,7 @@ void Tuner(int argc, char* argv[], const int V,
   const auto platform = Platform(args.platform_id);
   const auto device = Device(platform, args.device_id);
   const auto context = Context(device);
+  auto queue = Queue(context, device);
 
   // Tests for validity of the precision and retrieves properties
   if (!PrecisionSupported<T>(device)) {
@@ -150,11 +157,11 @@ void Tuner(int argc, char* argv[], const int V,
   const auto device_architecture = GetDeviceArchitecture(device);
   const auto device_name = GetDeviceName(device);
 
-  // Creates input buffers with random data
+  // Creates input buffers with random data. Adds a 'canary' region to detect buffer overflows.
   const auto buffer_sizes = std::vector<size_t>{
-      settings.size_x, settings.size_y,
-      settings.size_a, settings.size_b, settings.size_c,
-      settings.size_temp
+      settings.size_x + kCanarySize, settings.size_y + kCanarySize,
+      settings.size_a + kCanarySize, settings.size_b + kCanarySize, settings.size_c + kCanarySize,
+      settings.size_temp + kCanarySize
   };
   std::mt19937 mt(kSeed);
   std::uniform_real_distribution<double> dist(kTestDataLowerLimit, kTestDataUpperLimit);
@@ -172,7 +179,8 @@ void Tuner(int argc, char* argv[], const int V,
   }
 
   // Sets the tunable parameters and their possible values
-  auto configurations = SetConfigurations(device, settings.parameters,
+  auto configurations = SetConfigurations(device, settings.parameters, settings.local_size,
+                                          settings.mul_local, settings.div_local,
                                           SetConstraints(V), ComputeLocalMemSize(V));
   printf("* Found %s%zu configuration(s)%s\n",
          kPrintMessage.c_str(), configurations.size(), kPrintEnd.c_str());
@@ -196,12 +204,11 @@ void Tuner(int argc, char* argv[], const int V,
   printf("\n");
   printf("|   ID | total |");
   for (auto i = size_t{0}; i < settings.parameters.size() - 1; ++i) { printf("     "); }
-  printf("param |       compiles |         time | %6s |            status |\n", settings.performance_unit.c_str());
+  printf("param |      local      |      global     |       compiles |         time | %6s |            status |\n", settings.performance_unit.c_str());
   print_separator(settings.parameters.size());
 
   // First runs a reference example to compare against
   try {
-    auto queue = Queue(context, device);
     printf("|  ref |     - |");
     for (auto i = size_t{0}; i < settings.parameters.size() - 1; ++i) { printf("     "); }
     printf("    - |");
@@ -211,6 +218,16 @@ void Tuner(int argc, char* argv[], const int V,
     for (const auto id : settings.inputs) {
       device_buffers[id].Write(queue, buffer_sizes[id], source_buffers[id]);
     }
+
+    // Sets the thread configuration
+    auto global = settings.global_size_ref;
+    auto local = settings.local_size_ref;
+
+    // Make sure that the global worksize is a multiple of the local
+    for (auto i=size_t{0}; i<global.size(); ++i) {
+      while ((global[i] / local[i]) * local[i] != global[i]) { global[i]++; }
+    }
+    printf("%8zu%8zu |%8zu%8zu |", local[0], local[1], global[0], global[1]);
 
     // Compiles the kernel
     auto compiler_options = std::vector<std::string>();
@@ -222,7 +239,7 @@ void Tuner(int argc, char* argv[], const int V,
 
     // Runs the kernel
     const auto time_ms = TimeKernel(args.num_runs, kernel, queue, device,
-                                    settings.global_size_ref, settings.local_size_ref);
+                                    global, local);
     printf("      - |");
     if (time_ms == -1.0) { throw std::runtime_error("Error in reference implementation"); }
 
@@ -244,8 +261,6 @@ void Tuner(int argc, char* argv[], const int V,
   auto results = std::vector<TuningResult>();
   for (auto config_id = size_t{0}; config_id < configurations.size(); ++config_id) {
     try {
-      auto queue = Queue(context, device);
-
       auto configuration = configurations[config_id];
       printf("| %4zu | %5zu |", config_id + 1, configurations.size());
       for (const auto& parameter : settings.parameters) {
@@ -259,10 +274,16 @@ void Tuner(int argc, char* argv[], const int V,
       }
 
       // Sets the thread configuration
-      const auto global = SetThreadConfiguration(configuration, settings.global_size,
-                                                 settings.mul_global, settings.div_global);
-      const auto local = SetThreadConfiguration(configuration, settings.local_size,
-                                                settings.mul_local, settings.div_local);
+      auto global = SetThreadConfiguration(configuration, settings.global_size,
+                                           settings.mul_global, settings.div_global);
+      auto local = SetThreadConfiguration(configuration, settings.local_size,
+                                          settings.mul_local, settings.div_local);
+
+      // Make sure that the global worksize is a multiple of the local
+      for (auto i=size_t{0}; i<global.size(); ++i) {
+        while ((global[i] / local[i]) * local[i] != global[i]) { global[i]++; }
+      }
+      printf("%8zu%8zu |%8zu%8zu |", local[0], local[1], global[0], global[1]);
 
       // Sets the parameters for this configuration
       auto kernel_source = std::string{""};
@@ -315,7 +336,7 @@ void Tuner(int argc, char* argv[], const int V,
       printf(" %6.1lf |", settings.metric_amount / (time_ms * 1.0e6));
       printf("     %sresults match%s |\n", kPrintSuccess.c_str(), kPrintEnd.c_str());
     }
-    catch (CLCudaAPIBuildError) {
+    catch (CLCudaAPIBuildError&) {
       const auto status_code = DispatchExceptionCatchAll(true);
       printf("  %scompilation error: %5d%s     |",
              kPrintError.c_str(), static_cast<int>(status_code), kPrintEnd.c_str());
@@ -342,15 +363,24 @@ void Tuner(int argc, char* argv[], const int V,
   const auto best_time_ms = best_configuration->score;
   if (best_time_ms == 0.0) { return; }
 
-  // Also prints the performance of the best-case in terms of GB/s or GFLOPS
+  // Computes and prints some other statistics
+  auto average_ms = 0.0;
+  for (const auto& result : results) { average_ms += result.score; }
+  average_ms /= results.size();
   printf("\n");
+  printf("* Got average result of %.2lf ms", average_ms);
+  printf(": %.1lf %s\n", settings.metric_amount / (average_ms * 1.0e6),
+         settings.performance_unit.c_str());
+
+
+  // Also prints the performance of the best-case in terms of GB/s or GFLOPS
   printf("* Found best result %.2lf ms", best_time_ms);
   printf(": %.1lf %s\n", settings.metric_amount / (best_time_ms * 1.0e6),
          settings.performance_unit.c_str());
   printf("* Best parameters: ");
   auto best_string = std::string{""};
   auto i = size_t{0};
-  for (const auto config : best_configuration->config) {
+  for (const auto& config : best_configuration->config) {
     best_string += "" + config.first + "=" + ToString(config.second);
     if (i < best_configuration->config.size() - 1) { best_string += " "; }
     ++i;
@@ -373,6 +403,12 @@ void Tuner(int argc, char* argv[], const int V,
     if (o == kArgAlpha) { metadata.push_back({"arg_alpha", ToString(args.alpha)}); }
     if (o == kArgBeta)  { metadata.push_back({"arg_beta", ToString(args.beta)}); }
     if (o == kArgBatchCount) { metadata.push_back({"arg_batch_count", ToString(args.batch_count)}); }
+    if (o == kArgHeight)     { metadata.push_back({"arg_height", ToString(args.height)}); }
+    if (o == kArgWidth)      { metadata.push_back({"arg_width", ToString(args.width)}); }
+    if (o == kArgKernelH)    { metadata.push_back({"arg_kernel_h", ToString(args.kernel_h)}); }
+    if (o == kArgKernelW)    { metadata.push_back({"arg_kernel_w", ToString(args.kernel_w)}); }
+    if (o == kArgChannels)   { metadata.push_back({"arg_channels", ToString(args.channels)}); }
+    if (o == kArgNumKernels) { metadata.push_back({"arg_num_kernels", ToString(args.num_kernels)}); }
   }
   PrintTimingsToFileAsJSON("clblast_" + settings.kernel_family + "_" + precision_string + ".json",
                            device, platform, metadata, results);

@@ -63,7 +63,7 @@ def run_benchmark(name, arguments_list, precision, num_runs, platform, device, c
             all_arguments = [arg if arg != "-precision 16" else "-precision 32" for arg in all_arguments]
             benchmark_output = utils.run_binary(binary, all_arguments)
             result_extra = utils.parse_results(benchmark_output)
-            for index in range(len(min(result, result_extra))):
+            for index in range(min(len(result), len(result_extra))):
                 result[index]["GBs_1_FP32"] = result_extra[index]["GBs_1"]
                 result[index]["GFLOPS_1_FP32"] = result_extra[index]["GFLOPS_1"]
                 for id in COMPARISON_IDS:
@@ -83,7 +83,7 @@ def parse_arguments(argv):
     parser.add_argument("-d", "--device", required=True, type=int, help="The ID of the OpenCL device to test on")
     parser.add_argument("-n", "--num_runs", type=int, default=None, help="Overrides the default number of benchmark repeats for averaging")
     parser.add_argument("-x", "--precision", type=int, default=32, help="The precision to test for (choose from 16, 32, 64, 3232, 6464")
-    parser.add_argument("-l", "--load_from_disk", action="store_true", help="Increase verbosity of the script")
+    parser.add_argument("-l", "--load_from_disk", action="store_true", help="Loading existing results from JSON file and replot")
     parser.add_argument("-t", "--plot_title", default="", help="The title for the plots, defaults to benchmark name")
     parser.add_argument("-z", "--tight_plot", action="store_true", help="Enables tight plot layout for in paper or presentation")
     parser.add_argument("-o", "--output_folder", default=os.getcwd(), help="Sets the folder for output plots (defaults to current folder)")
@@ -103,7 +103,7 @@ def benchmark_single(benchmark, comparisons, platform, device, num_runs, precisi
     # The benchmark name and plot title
     benchmark_name = utils.precision_to_letter(precision) + benchmark.upper()
     if benchmark.upper() != "SUMMARY":
-        plot_title = benchmark_name if plot_title is "" else benchmark_name + ": " + plot_title
+        plot_title = benchmark_name if plot_title == "" else benchmark_name + ": " + plot_title
 
     # Retrieves the comparison settings
     library_ids = [1]

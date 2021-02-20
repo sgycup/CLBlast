@@ -9,7 +9,7 @@ import os
 
 # Type settings (also change in database_structure.hpp)
 STRING_LENGTH = 50
-PARAMETERS_LENGTH = 14
+PARAMETERS_LENGTH = 16
 
 # Constants from the C++ code
 VENDOR_DEFAULT = "default"
@@ -24,7 +24,9 @@ DEVICE_ATTRIBUTES = ["clblast_device_name", "clblast_device_architecture",
                      "device_core_clock", "device_compute_units"]
 KERNEL_ATTRIBUTES = ["precision", "kernel_family"]
 ARGUMENT_ATTRIBUTES = ["arg_m", "arg_n", "arg_k", "arg_alpha", "arg_beta",
-                       "arg_from", "arg_to", "arg_step"]
+                       "arg_from", "arg_to", "arg_step",
+                       "arg_channels", "arg_height", "arg_width", "arg_kernel_h", "arg_kernel_w",
+                       "arg_num_kernels", "arg_batch_count"]
 ATTRIBUTES = DEVICE_ATTRIBUTES + DEVICE_TYPE_ATTRIBUTES + KERNEL_ATTRIBUTES + ARGUMENT_ATTRIBUTES
 GROUP_ATTRIBUTES = DEVICE_TYPE_ATTRIBUTES + KERNEL_ATTRIBUTES + ["kernel"] + ARGUMENT_ATTRIBUTES
 
@@ -185,7 +187,7 @@ def print_cpp_database(database, output_dir):
                 for example_data in precision_database:
                     for example_result in example_data["results"]:
                         parameter_names.extend([str(k) for k in example_result["parameters"].keys()])
-                parameter_names = sorted(set(parameter_names))
+                parameter_names = sorted(list(set(parameter_names)))
                 parameter_names_as_string = ", ".join(['"%s"' % p for p in parameter_names])
                 f.write(", {" + parameter_names_as_string + "}, {\n")
 

@@ -30,6 +30,15 @@ After installation OpenCL and CLBlast, simply use pip to install PyCLBlast, e.g.
 
 To start using the library, browse the [CLBlast](https://github.com/CNugteren/CLBlast) documentation or check out the PyCLBlast samples provides in the `samples` subfolder.
 
+For developers, first install CLBlast, followed by the Python requirements (e.g. in a Python3 virtualenv):
+
+    pip install Cython numpy pybind11
+    pip install pyopencl
+
+And then compile the library from this location using the `setup.py` file:
+
+    python setup.py install
+
 
 Testing PyCLBlast
 -------------
@@ -37,3 +46,13 @@ Testing PyCLBlast
 The main exhaustive tests are the main CLBlast test binaries. Apart from that, you can also run the PyCLBlast smoke tests from the `test` subfolder, e.g. as follows:
 
     python -m unittest discover
+
+
+How to release a new version on PyPi
+-------------
+
+Following [the guide](https://packaging.python.org/tutorials/packaging-projects/), in essence doing (after changing the version number in `setup.py`):
+
+    python3 setup.py sdist bdist_wheel
+    python3 -m twine upload --repository pypi dist/pyclblast-1.3.1.tar.gz
+    # use '__token__' as username and supply the token from your PyPi account

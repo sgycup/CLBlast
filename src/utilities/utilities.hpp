@@ -47,9 +47,13 @@ using double2 = std::complex<double>;
 // Khronos OpenCL extensions
 const std::string kKhronosAttributesAMD = "cl_amd_device_attribute_query";
 const std::string kKhronosAttributesNVIDIA = "cl_nv_device_attribute_query";
+const std::string kKhronosIntelSubgroups = "cl_intel_subgroups";
 
 // Catched an unknown error
 constexpr auto kUnknownError = -999;
+
+// Canary size to add to buffers to check for buffer overflows
+constexpr auto kCanarySize = 127;
 
 // =================================================================================================
 
@@ -65,6 +69,7 @@ constexpr auto kArgBTransp = "transB";
 constexpr auto kArgSide = "side";
 constexpr auto kArgTriangle = "triangle";
 constexpr auto kArgDiagonal = "diagonal";
+constexpr auto kArgKernelMode = "kernel_mode";
 constexpr auto kArgXInc = "incx";
 constexpr auto kArgYInc = "incy";
 constexpr auto kArgXOffset = "offx";
@@ -83,6 +88,7 @@ constexpr auto kArgImaxOffset = "offimax";
 constexpr auto kArgAlpha = "alpha";
 constexpr auto kArgBeta = "beta";
 constexpr auto kArgBatchCount = "batch_num";
+constexpr auto kArgNumKernels = "num_kernels";
 
 // Constants for im2col
 constexpr auto kArgChannels = "channels";
@@ -117,6 +123,7 @@ constexpr auto kArgHelp = "h";
 constexpr auto kArgQuiet = "q";
 constexpr auto kArgNoAbbreviations = "no_abbrv";
 constexpr auto kArgNumRuns = "runs";
+constexpr auto kArgFullStatistics = "full_statistics";
 
 // The buffer names
 constexpr auto kBufVecX = "X";
@@ -177,6 +184,7 @@ struct Arguments {
   Side side = Side::kLeft;
   Triangle triangle = Triangle::kUpper;
   Diagonal diagonal = Diagonal::kUnit;
+  KernelMode kernel_mode = KernelMode::kCrossCorrelation;
   size_t x_inc = 1;
   size_t y_inc = 1;
   size_t x_offset = 0;
@@ -194,7 +202,7 @@ struct Arguments {
   size_t imax_offset = 0;
   T alpha = ConstantOne<T>();
   T beta = ConstantOne<T>();
-  // Arguments for im2col
+  // Arguments for im2col and convgemm
   size_t channels = 1;
   size_t height = 1;
   size_t width = 1;
@@ -206,6 +214,7 @@ struct Arguments {
   size_t stride_w = 1;
   size_t dilation_h = 1;
   size_t dilation_w = 1;
+  size_t num_kernels = 1;
   // Batch-specific arguments
   size_t batch_count = 1;
   std::vector<size_t> x_offsets; // = {0};
@@ -239,6 +248,7 @@ struct Arguments {
   size_t num_steps = 0;
   size_t num_runs = 10;
   std::vector<std::string> tuner_files = {};
+  bool full_statistics = false;
   #ifdef CLBLAST_REF_CUBLAS
     void* cublas_handle; // cublasHandle_t
   #endif
@@ -362,6 +372,16 @@ std::string GetDeviceType(const Device& device);
 std::string GetDeviceVendor(const Device& device);
 std::string GetDeviceArchitecture(const Device& device);
 std::string GetDeviceName(const Device& device);
+
+// =================================================================================================
+
+void SetOpenCLKernelStandard(const Device &device, std::vector<std::string> &options);
+
+// =================================================================================================
+
+// Solve Bezout's identity
+// a * p + b * q = r = GCD(a, b)
+void EuclidGCD(int a, int b, int &p, int &q, int &r);
 
 // =================================================================================================
 } // namespace clblast

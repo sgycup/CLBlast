@@ -511,7 +511,7 @@ Arguments to SUM:
 xAMAX: Index of absolute maximum value in a vector
 -------------
 
-Finds the index of the maximum of the absolute values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer.
+Finds the index of a maximum (not necessarily the first if there are multiple) of the absolute values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer.
 
 C++ API:
 ```
@@ -562,7 +562,7 @@ Arguments to AMAX:
 xAMIN: Index of absolute minimum value in a vector (non-BLAS function)
 -------------
 
-Finds the index of the minimum of the absolute values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer.
+Finds the index of a minimum (not necessarily the first if there are multiple) of the absolute values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer.
 
 C++ API:
 ```
@@ -613,7 +613,7 @@ Arguments to AMIN:
 xMAX: Index of maximum value in a vector (non-BLAS function)
 -------------
 
-Finds the index of the maximum of the values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer. This routine is the non-absolute version of the IxAMAX BLAS routine.
+Finds the index of a maximum (not necessarily the first if there are multiple) of the values in the _x_ vector. The resulting integer index is stored in the _imax_ buffer. This routine is the non-absolute version of the IxAMAX BLAS routine.
 
 C++ API:
 ```
@@ -664,7 +664,7 @@ Arguments to MAX:
 xMIN: Index of minimum value in a vector (non-BLAS function)
 -------------
 
-Finds the index of the minimum of the values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer. This routine is the non-absolute minimum version of the IxAMAX BLAS routine.
+Finds the index of a minimum (not necessarily the first if there are multiple) of the values in the _x_ vector. The resulting integer index is stored in the _imin_ buffer. This routine is the non-absolute minimum version of the IxAMAX BLAS routine.
 
 C++ API:
 ```
@@ -3015,12 +3015,13 @@ Requirements for OMATCOPY:
 xIM2COL: Im2col function (non-BLAS function)
 -------------
 
-Performs the im2col algorithm, in which _im_ is the input matrix and _col_ is the output matrix.
+Performs the im2col algorithm, in which _im_ is the input matrix and _col_ is the output matrix. Overwrites any existing values in the _col_ buffer
 
 C++ API:
 ```
 template <typename T>
-StatusCode Im2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+StatusCode Im2col(const KernelMode kernel_mode,
+                  const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                   const cl_mem im_buffer, const size_t im_offset,
                   cl_mem col_buffer, const size_t col_offset,
                   cl_command_queue* queue, cl_event* event)
@@ -3028,23 +3029,28 @@ StatusCode Im2col(const size_t channels, const size_t height, const size_t width
 
 C API:
 ```
-CLBlastStatusCode CLBlastSim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode CLBlastSim2col(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                  const cl_mem im_buffer, const size_t im_offset,
                                  cl_mem col_buffer, const size_t col_offset,
                                  cl_command_queue* queue, cl_event* event)
-CLBlastStatusCode CLBlastDim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode CLBlastDim2col(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                  const cl_mem im_buffer, const size_t im_offset,
                                  cl_mem col_buffer, const size_t col_offset,
                                  cl_command_queue* queue, cl_event* event)
-CLBlastStatusCode CLBlastCim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode CLBlastCim2col(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                  const cl_mem im_buffer, const size_t im_offset,
                                  cl_mem col_buffer, const size_t col_offset,
                                  cl_command_queue* queue, cl_event* event)
-CLBlastStatusCode CLBlastZim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode CLBlastZim2col(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                  const cl_mem im_buffer, const size_t im_offset,
                                  cl_mem col_buffer, const size_t col_offset,
                                  cl_command_queue* queue, cl_event* event)
-CLBlastStatusCode CLBlastHim2col(const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+CLBlastStatusCode CLBlastHim2col(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
                                  const cl_mem im_buffer, const size_t im_offset,
                                  cl_mem col_buffer, const size_t col_offset,
                                  cl_command_queue* queue, cl_event* event)
@@ -3052,6 +3058,7 @@ CLBlastStatusCode CLBlastHim2col(const size_t channels, const size_t height, con
 
 Arguments to IM2COL:
 
+* `const KernelMode kernel_mode`: The kernel mode, either `KernelMode::kCrossCorrelation` for the normal mode, or `KernelMode::kConvolution` for the convolution mode that flips a kernel along `h` and `w` axes.
 * `const size_t channels`: Integer size argument. This value must be positive.
 * `const size_t height`: Integer size argument. This value must be positive.
 * `const size_t width`: Integer size argument. This value must be positive.
@@ -3063,10 +3070,142 @@ Arguments to IM2COL:
 * `const size_t stride_w`: Integer size argument. This value must be positive.
 * `const size_t dilation_h`: Integer size argument. This value must be positive.
 * `const size_t dilation_w`: Integer size argument. This value must be positive.
-* `const cl_mem im_buffer`: OpenCL buffer to store the input im vector.
-* `const size_t im_offset`: The offset in elements from the start of the input im vector.
-* `cl_mem col_buffer`: OpenCL buffer to store the output col vector.
-* `const size_t col_offset`: The offset in elements from the start of the output col vector.
+* `const cl_mem im_buffer`: OpenCL buffer to store the input im tensor.
+* `const size_t im_offset`: The offset in elements from the start of the input im tensor.
+* `cl_mem col_buffer`: OpenCL buffer to store the output col tensor.
+* `const size_t col_offset`: The offset in elements from the start of the output col tensor.
+* `cl_command_queue* queue`: Pointer to an OpenCL command queue associated with a context and device to execute the routine on.
+* `cl_event* event`: Pointer to an OpenCL event to be able to wait for completion of the routine's OpenCL kernel(s). This is an optional argument.
+
+
+
+xCOL2IM: Col2im function (non-BLAS function)
+-------------
+
+Performs the col2im algorithm, in which _col_ is the input matrix and _im_ is the output matrix. Accumulates results on top of the existing values in the _im_ buffer.
+
+C++ API:
+```
+template <typename T>
+StatusCode Col2im(const KernelMode kernel_mode,
+                  const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                  const cl_mem col_buffer, const size_t col_offset,
+                  cl_mem im_buffer, const size_t im_offset,
+                  cl_command_queue* queue, cl_event* event)
+```
+
+C API:
+```
+CLBlastStatusCode CLBlastScol2im(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                 const cl_mem col_buffer, const size_t col_offset,
+                                 cl_mem im_buffer, const size_t im_offset,
+                                 cl_command_queue* queue, cl_event* event)
+CLBlastStatusCode CLBlastDcol2im(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                 const cl_mem col_buffer, const size_t col_offset,
+                                 cl_mem im_buffer, const size_t im_offset,
+                                 cl_command_queue* queue, cl_event* event)
+CLBlastStatusCode CLBlastCcol2im(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                 const cl_mem col_buffer, const size_t col_offset,
+                                 cl_mem im_buffer, const size_t im_offset,
+                                 cl_command_queue* queue, cl_event* event)
+CLBlastStatusCode CLBlastZcol2im(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                 const cl_mem col_buffer, const size_t col_offset,
+                                 cl_mem im_buffer, const size_t im_offset,
+                                 cl_command_queue* queue, cl_event* event)
+CLBlastStatusCode CLBlastHcol2im(const CLBlastKernelMode kernel_mode,
+                                 const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w,
+                                 const cl_mem col_buffer, const size_t col_offset,
+                                 cl_mem im_buffer, const size_t im_offset,
+                                 cl_command_queue* queue, cl_event* event)
+```
+
+Arguments to COL2IM:
+
+* `const KernelMode kernel_mode`: The kernel mode, either `KernelMode::kCrossCorrelation` for the normal mode, or `KernelMode::kConvolution` for the convolution mode that flips a kernel along `h` and `w` axes.
+* `const size_t channels`: Integer size argument. This value must be positive.
+* `const size_t height`: Integer size argument. This value must be positive.
+* `const size_t width`: Integer size argument. This value must be positive.
+* `const size_t kernel_h`: Integer size argument. This value must be positive.
+* `const size_t kernel_w`: Integer size argument. This value must be positive.
+* `const size_t pad_h`: Integer size argument. This value must be positive.
+* `const size_t pad_w`: Integer size argument. This value must be positive.
+* `const size_t stride_h`: Integer size argument. This value must be positive.
+* `const size_t stride_w`: Integer size argument. This value must be positive.
+* `const size_t dilation_h`: Integer size argument. This value must be positive.
+* `const size_t dilation_w`: Integer size argument. This value must be positive.
+* `const cl_mem col_buffer`: OpenCL buffer to store the input col tensor.
+* `const size_t col_offset`: The offset in elements from the start of the input col tensor.
+* `cl_mem im_buffer`: OpenCL buffer to store the output im tensor.
+* `const size_t im_offset`: The offset in elements from the start of the output im tensor.
+* `cl_command_queue* queue`: Pointer to an OpenCL command queue associated with a context and device to execute the routine on.
+* `cl_event* event`: Pointer to an OpenCL event to be able to wait for completion of the routine's OpenCL kernel(s). This is an optional argument.
+
+
+
+xCONVGEMM: Batched convolution as GEMM (non-BLAS function)
+-------------
+
+Integrates im2col and GEMM for batched 3D convolution, in which _im_ is the 4D input tensor (NCHW - batch-channelin-height-width), _kernel_ the 4D kernel weights tensor (KCHW - channelout-channelin-height-width), and _result_ the 4D output tensor (NCHW - batch-channelout-height-width).
+
+C++ API:
+```
+template <typename T>
+StatusCode Convgemm(const KernelMode kernel_mode,
+                    const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w, const size_t num_kernels, const size_t batch_count,
+                    const cl_mem im_buffer, const size_t im_offset,
+                    const cl_mem kernel_buffer, const size_t kernel_offset,
+                    cl_mem result_buffer, const size_t result_offset,
+                    cl_command_queue* queue, cl_event* event)
+```
+
+C API:
+```
+CLBlastStatusCode CLBlastSconvgemm(const CLBlastKernelMode kernel_mode,
+                                   const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w, const size_t num_kernels, const size_t batch_count,
+                                   const cl_mem im_buffer, const size_t im_offset,
+                                   const cl_mem kernel_buffer, const size_t kernel_offset,
+                                   cl_mem result_buffer, const size_t result_offset,
+                                   cl_command_queue* queue, cl_event* event)
+CLBlastStatusCode CLBlastDconvgemm(const CLBlastKernelMode kernel_mode,
+                                   const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w, const size_t num_kernels, const size_t batch_count,
+                                   const cl_mem im_buffer, const size_t im_offset,
+                                   const cl_mem kernel_buffer, const size_t kernel_offset,
+                                   cl_mem result_buffer, const size_t result_offset,
+                                   cl_command_queue* queue, cl_event* event)
+CLBlastStatusCode CLBlastHconvgemm(const CLBlastKernelMode kernel_mode,
+                                   const size_t channels, const size_t height, const size_t width, const size_t kernel_h, const size_t kernel_w, const size_t pad_h, const size_t pad_w, const size_t stride_h, const size_t stride_w, const size_t dilation_h, const size_t dilation_w, const size_t num_kernels, const size_t batch_count,
+                                   const cl_mem im_buffer, const size_t im_offset,
+                                   const cl_mem kernel_buffer, const size_t kernel_offset,
+                                   cl_mem result_buffer, const size_t result_offset,
+                                   cl_command_queue* queue, cl_event* event)
+```
+
+Arguments to CONVGEMM:
+
+* `const KernelMode kernel_mode`: The kernel mode, either `KernelMode::kCrossCorrelation` for the normal mode, or `KernelMode::kConvolution` for the convolution mode that flips a kernel along `h` and `w` axes.
+* `const size_t channels`: Integer size argument. This value must be positive.
+* `const size_t height`: Integer size argument. This value must be positive.
+* `const size_t width`: Integer size argument. This value must be positive.
+* `const size_t kernel_h`: Integer size argument. This value must be positive.
+* `const size_t kernel_w`: Integer size argument. This value must be positive.
+* `const size_t pad_h`: Integer size argument. This value must be positive.
+* `const size_t pad_w`: Integer size argument. This value must be positive.
+* `const size_t stride_h`: Integer size argument. This value must be positive.
+* `const size_t stride_w`: Integer size argument. This value must be positive.
+* `const size_t dilation_h`: Integer size argument. This value must be positive.
+* `const size_t dilation_w`: Integer size argument. This value must be positive.
+* `const size_t num_kernels`: Integer size argument. This value must be positive.
+* `const size_t batch_count`: Integer size argument. This value must be positive.
+* `const cl_mem im_buffer`: OpenCL buffer to store the input im tensor.
+* `const size_t im_offset`: The offset in elements from the start of the input im tensor.
+* `const cl_mem kernel_buffer`: OpenCL buffer to store the input kernel tensor.
+* `const size_t kernel_offset`: The offset in elements from the start of the input kernel tensor.
+* `cl_mem result_buffer`: OpenCL buffer to store the output result tensor.
+* `const size_t result_offset`: The offset in elements from the start of the output result tensor.
 * `cl_command_queue* queue`: Pointer to an OpenCL command queue associated with a context and device to execute the routine on.
 * `cl_event* event`: Pointer to an OpenCL event to be able to wait for completion of the routine's OpenCL kernel(s). This is an optional argument.
 
@@ -3452,7 +3591,7 @@ Arguments to FillCache:
 RetrieveParameters: Retrieves current tuning parameters (auxiliary function)
 -------------
 
-This function retrieves current tuning parameters for a specific device-precision-kernel combination. This can be used for debugging or inspection.
+This function retrieves current tuning parameters for a specific device-precision-kernel combination. This can be used for debugging or inspection. See [tuning.md](tuning.md) for more details on which kernel names and parameters are valid.
 
 C++ API:
 ```
@@ -3475,7 +3614,7 @@ Arguments to RetrieveParameters (C++ version):
 OverrideParameters: Override tuning parameters (auxiliary function)
 -------------
 
-This function overrides tuning parameters for a specific device-precision-kernel combination. The next time the target routine is called it will be re-compiled and use the new parameters. All further times (until `OverrideParameters` is called again) it will load the kernel from the cache and thus continue to use the new parameters. Note that the first time after calling `OverrideParameters` a performance drop can be observable due to the re-compilation of the kernel.
+This function overrides tuning parameters for a specific device-precision-kernel combination. The next time the target routine is called it will be re-compiled and use the new parameters. All further times (until `OverrideParameters` is called again) it will load the kernel from the cache and thus continue to use the new parameters. Note that the first time after calling `OverrideParameters` a performance drop can be observable due to the re-compilation of the kernel. See [tuning.md](tuning.md) for more details on which kernel names and parameters are valid.
 
 C++ API:
 ```

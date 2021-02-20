@@ -18,13 +18,13 @@
 // =================================================================================================
 //
 // Copyright 2015 SURFsara
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //  http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -44,8 +44,10 @@
 #include <numeric>   // std::accumulate
 #include <cstring>   // std::strlen
 #include <cstdio>    // fprintf, stderr
+#include <assert.h>
 
 // OpenCL
+#define CL_TARGET_OPENCL_VERSION 110
 #define CL_USE_DEPRECATED_OPENCL_1_1_APIS // to disable deprecation warnings
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS // to disable deprecation warnings
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS // to disable deprecation warnings
@@ -355,6 +357,14 @@ class Device {
            std::string{"."} + std::to_string(GetInfo<cl_uint>(CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV));
   }
 
+  // Returns if the Nvidia chip is a Volta or later archicture (sm_70 or higher)
+  bool IsPostNVIDIAVolta() const {
+    if(HasExtension("cl_nv_device_attribute_query")) {
+      return GetInfo<cl_uint>(CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV) >= 7;
+    }
+    return false;
+  }
+
   // Retrieves the above extra information (if present)
   std::string GetExtraInfo() const {
     if (HasExtension("cl_amd_device_attribute_query")) { return AMDBoardName(); }
@@ -437,45 +447,48 @@ using ContextPointer = cl_context*;
 // C++11 version of 'cl_program'.
 class Program {
  public:
-  Program() = default;
 
   // Source-based constructor with memory management
-  explicit Program(const Context &context, const std::string &source):
-      program_(new cl_program, [](cl_program* p) {
-        if (*p) { CheckErrorDtor(clReleaseProgram(*p)); }
-        delete p;
-      }) {
-    const char *source_ptr = &source[0];
-    const auto length = source.length();
+  explicit Program(const Context &context, const std::string &source) {
+    #ifdef AMD_SI_EMPTY_KERNEL_WORKAROUND
+      const std::string source_null_kernel = source + "\n__kernel void null_kernel() {}\n";
+      const char *source_ptr = &source_null_kernel[0];
+      const auto length = source_null_kernel.length();
+    #else
+      const char *source_ptr = &source[0];
+      const auto length = source.length();
+    #endif
     auto status = CL_SUCCESS;
-    *program_ = clCreateProgramWithSource(context(), 1, &source_ptr, &length, &status);
+    program_ = clCreateProgramWithSource(context(), 1, &source_ptr, &length, &status);
     CLCudaAPIError::Check(status, "clCreateProgramWithSource");
   }
 
   // Binary-based constructor with memory management
-  explicit Program(const Device &device, const Context &context, const std::string &binary):
-      program_(new cl_program, [](cl_program* p) {
-        if (*p) { CheckErrorDtor(clReleaseProgram(*p)); }
-        delete p;
-      }) {
+  explicit Program(const Device &device, const Context &context, const std::string &binary) {
     const char *binary_ptr = &binary[0];
     const auto length = binary.length();
     auto status1 = CL_SUCCESS;
     auto status2 = CL_SUCCESS;
     const auto dev = device();
-    *program_ = clCreateProgramWithBinary(context(), 1, &dev, &length,
+    program_ = clCreateProgramWithBinary(context(), 1, &dev, &length,
                                           reinterpret_cast<const unsigned char**>(&binary_ptr),
                                           &status1, &status2);
     CLCudaAPIError::Check(status1, "clCreateProgramWithBinary (binary status)");
     CLCudaAPIError::Check(status2, "clCreateProgramWithBinary");
   }
 
+  // Clean-up
+  ~Program() {
+    #ifndef _MSC_VER // causes an access violation under Windows when the driver is already unloaded
+      if (program_) { CheckErrorDtor(clReleaseProgram(program_)); }
+    #endif
+  }
+
   // Compiles the device program and checks whether or not there are any warnings/errors
   void Build(const Device &device, std::vector<std::string> &options) {
-    options.push_back("-cl-std=CL1.1");
     auto options_string = std::accumulate(options.begin(), options.end(), std::string{" "});
     const cl_device_id dev = device();
-    CheckError(clBuildProgram(*program_, 1, &dev, options_string.c_str(), nullptr, nullptr));
+    CheckError(clBuildProgram(program_, 1, &dev, options_string.c_str(), nullptr, nullptr));
   }
 
   // Confirms whether a certain status code is an actual compilation error or warning
@@ -487,28 +500,51 @@ class Program {
   std::string GetBuildInfo(const Device &device) const {
     auto bytes = size_t{0};
     auto query = cl_program_build_info{CL_PROGRAM_BUILD_LOG};
-    CheckError(clGetProgramBuildInfo(*program_, device(), query, 0, nullptr, &bytes));
+    CheckError(clGetProgramBuildInfo(program_, device(), query, 0, nullptr, &bytes));
     auto result = std::string{};
     result.resize(bytes);
-    CheckError(clGetProgramBuildInfo(*program_, device(), query, bytes, &result[0], nullptr));
+    CheckError(clGetProgramBuildInfo(program_, device(), query, bytes, &result[0], nullptr));
     return result;
   }
 
   // Retrieves a binary or an intermediate representation of the compiled program
   std::string GetIR() const {
-    auto bytes = size_t{0};
-    CheckError(clGetProgramInfo(*program_, CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &bytes, nullptr));
+    cl_uint num_devices = 0;
+    CheckError(clGetProgramInfo(program_, CL_PROGRAM_NUM_DEVICES,
+                sizeof(cl_uint), &num_devices, nullptr));
+
+    std::vector<size_t> binSizesInBytes(num_devices, 0);
+    CheckError(clGetProgramInfo(program_, CL_PROGRAM_BINARY_SIZES,
+                num_devices * sizeof(size_t), binSizesInBytes.data(), nullptr));
+
+    auto bytes       = size_t{0};
+    auto binSizeIter = size_t{0};
+    // Loop over the program binary sizes to find a binary whose size is > 0.
+    // The current logic assumes that there ever is only one valid program binary
+    // in a given cl_program. This should be the case unless the cl_program
+    // is built for all or a subset of devices associated to a given cl_program
+    for (; binSizeIter < binSizesInBytes.size(); ++binSizeIter) {
+        if (binSizesInBytes[binSizeIter] > 0) {
+            bytes = binSizesInBytes[binSizeIter];
+            break;
+        }
+    }
     auto result = std::string{};
     result.resize(bytes);
-    auto result_ptr = result.data();
-    CheckError(clGetProgramInfo(*program_, CL_PROGRAM_BINARIES, sizeof(char*), &result_ptr, nullptr));
+
+    std::vector<char*> out(num_devices, nullptr);
+    out[binSizeIter] = const_cast<char*>(result.data());
+
+    CheckError(clGetProgramInfo(program_, CL_PROGRAM_BINARIES,
+                                num_devices * sizeof(char*),
+                                out.data(), nullptr));
     return result;
   }
 
   // Accessor to the private data-member
-  const cl_program& operator()() const { return *program_; }
+  const cl_program& operator()() const { return program_; }
  private:
-  std::shared_ptr<cl_program> program_;
+  cl_program program_ = nullptr;
 };
 
 // =================================================================================================
@@ -718,9 +754,10 @@ class Buffer {
   }
 
   // Copies the contents of this buffer into another device buffer
-  void CopyToAsync(const Queue &queue, const size_t size, const Buffer<T> &destination) const {
+  void CopyToAsync(const Queue &queue, const size_t size, const Buffer<T> &destination,
+                   EventPointer event = nullptr) const {
     CheckError(clEnqueueCopyBuffer(queue(), *buffer_, destination(), 0, 0, size*sizeof(T), 0,
-                                   nullptr, nullptr));
+                                   nullptr, event));
   }
   void CopyTo(const Queue &queue, const size_t size, const Buffer<T> &destination) const {
     CopyToAsync(queue, size, destination);
@@ -755,14 +792,25 @@ class Kernel {
   }
 
   // Regular constructor with memory management
-  explicit Kernel(const Program &program, const std::string &name):
+  explicit Kernel(const std::shared_ptr<Program> program, const std::string &name):
       kernel_(new cl_kernel, [](cl_kernel* k) {
         if (*k) { CheckErrorDtor(clReleaseKernel(*k)); }
         delete k;
-      }) {
+      })
+    #ifdef AMD_SI_EMPTY_KERNEL_WORKAROUND
+      , null_kernel_(new cl_kernel, [](cl_kernel* k) {
+        if (*k) { CheckErrorDtor(clReleaseKernel(*k)); }
+        delete k;
+      })
+    #endif
+  {
     auto status = CL_SUCCESS;
-    *kernel_ = clCreateKernel(program(), name.c_str(), &status);
+    *kernel_ = clCreateKernel(program->operator()(), name.c_str(), &status);
     CLCudaAPIError::Check(status, "clCreateKernel");
+    #ifdef AMD_SI_EMPTY_KERNEL_WORKAROUND
+      *null_kernel_ = clCreateKernel(program->operator()(), "null_kernel", &status);
+      CLCudaAPIError::Check(status, "clCreateKernel");
+    #endif
   }
 
   // Sets a kernel argument at the indicated position
@@ -826,12 +874,21 @@ class Kernel {
                                       static_cast<cl_uint>(waitForEventsPlain.size()),
                                       !waitForEventsPlain.empty() ? waitForEventsPlain.data() : nullptr,
                                       event));
+    #ifdef AMD_SI_EMPTY_KERNEL_WORKAROUND
+      const std::vector<size_t> nullRange = {1};
+      CheckError(clEnqueueNDRangeKernel(queue(), *null_kernel_, static_cast<cl_uint>(nullRange.size()),
+                                        nullptr, nullRange.data(), nullptr,
+                                        0, nullptr, nullptr));
+    #endif
   }
 
   // Accessor to the private data-member
   const cl_kernel& operator()() const { return *kernel_; }
  private:
   std::shared_ptr<cl_kernel> kernel_;
+  #ifdef AMD_SI_EMPTY_KERNEL_WORKAROUND
+    std::shared_ptr<cl_kernel> null_kernel_;
+  #endif
 
   // Internal implementation for the recursive SetArguments function.
   template <typename T>

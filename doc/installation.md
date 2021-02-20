@@ -24,6 +24,8 @@ The pre-requisites for compilation of CLBlast are kept as minimal as possible. A
   - Beignet
   - Mesa Clover
   - ARM Mali OpenCL
+  - Vivante OpenCL
+  - POCL
 
 
 Using pre-built packages
